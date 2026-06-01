@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<title>Reels Analytics Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#0f0f0f; color:#fff; }
+.header { background: linear-gradient(135deg,#405DE6,#5851DB,#833AB4,#C13584,#E1306C,#FD1D1D); padding:20px 32px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.header h1 { font-size:22px; font-weight:700; }
+.header p { opacity:.8; font-size:12px; margin-top:3px; }
+.sync-btns { display:flex; gap:8px; }
+.btn { padding:8px 16px; border-radius:8px; border:none; font-size:12px; font-weight:600; cursor:pointer; transition:.2s; }
+.btn-primary { background:#fff; color:#833AB4; }
+.btn-primary:hover { background:#f0f0f0; }
+.btn-ghost { background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.3); }
+.btn-ghost:hover { background:rgba(255,255,255,0.25); }
+.btn:disabled { opacity:.5; cursor:not-allowed; }
+.status-bar { background:#161616; padding:6px 32px; font-size:11px; color:#666; display:flex; align-items:center; gap:8px; min-height:28px; border-bottom:1px solid #222; }
+.spinner { width:10px; height:10px; border:2px solid #333; border-top-color:#E1306C; border-radius:50%; animation:spin .8s linear infinite; flex-shrink:0; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.progress-bar { height:2px; background:#E1306C; transition:width .3s; }
+
+/* TABS */
+.tabs { display:flex; gap:0; border-bottom:1px solid #222; background:#111; padding:0 24px; }
+.tab { padding:12px 20px; font-size:13px; font-weight:500; color:#555; cursor:pointer; border-bottom:2px solid transparent; transition:.2s; white-space:nowrap; }
+.tab:hover { color:#aaa; }
+.tab.active { color:#fff; border-bottom-color:#E1306C; }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+
+.container { max-width:1500px; margin:0 auto; padding:20px; }
+
+/* STATS */
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
+.stat-card { background:#1a1a1a; border-radius:10px; padding:16px; border:1px solid #242424; }
+.stat-card .lbl { font-size:10px; color:#555; text-transform:uppercase; letter-spacing:.8px; }
+.stat-card .val { font-size:24px; font-weight:700; margin-top:5px; background:linear-gradient(135deg,#833AB4,#E1306C); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.stat-card .sub { font-size:10px; color:#444; margin-top:2px; }
+
+/* CHARTS */
+.charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
+.chart-card { background:#1a1a1a; border-radius:10px; padding:18px; border:1px solid #242424; }
+.chart-card h3 { font-size:11px; color:#555; text-transform:uppercase; letter-spacing:.8px; margin-bottom:12px; }
+
+/* TABLE */
+.table-card { background:#1a1a1a; border-radius:10px; padding:18px; border:1px solid #242424; }
+.table-card h3 { font-size:11px; color:#555; text-transform:uppercase; letter-spacing:.8px; margin-bottom:12px; }
+.filter-bar { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+.filter-bar input { background:#111; border:1px solid #2a2a2a; color:#fff; padding:7px 12px; border-radius:7px; font-size:12px; flex:1; min-width:180px; }
+.filter-bar select { background:#111; border:1px solid #2a2a2a; color:#fff; padding:7px 12px; border-radius:7px; font-size:12px; cursor:pointer; }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+th { text-align:left; padding:8px 10px; color:#444; font-weight:500; border-bottom:1px solid #1e1e1e; white-space:nowrap; }
+td { padding:8px 10px; border-bottom:1px solid #161616; vertical-align:middle; }
+tr:hover td { background:#1c1c1c; }
+.badge { display:inline-block; padding:2px 7px; border-radius:20px; font-size:10px; font-weight:600; }
+.hi { background:#0d2e0d; color:#4caf50; }
+.md { background:#2e2a0d; color:#ffc107; }
+.lo { background:#2e0d0d; color:#f44336; }
+.caption-cell { max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#bbb; }
+.transcript-cell { max-width:240px; font-size:11px; color:#555; font-style:italic; cursor:help; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bar-wrap { display:flex; align-items:center; gap:6px; }
+.mini-bar { flex:1; max-width:50px; height:3px; background:#1e1e1e; border-radius:2px; }
+.mini-bar-fill { height:100%; border-radius:2px; background:linear-gradient(90deg,#833AB4,#E1306C); }
+a.ig { color:#E1306C; text-decoration:none; }
+
+/* PATTERNS */
+.patterns-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
+.insight-card { background:#1a1a1a; border-radius:10px; padding:18px; border:1px solid #242424; }
+.insight-card h3 { font-size:11px; color:#555; text-transform:uppercase; letter-spacing:.8px; margin-bottom:14px; }
+.insight-card.full { grid-column:1/-1; }
+.compare-row { display:flex; gap:12px; margin-bottom:10px; }
+.compare-box { flex:1; background:#111; border-radius:8px; padding:12px; }
+.compare-box .label { font-size:10px; color:#555; margin-bottom:6px; }
+.compare-box .big { font-size:22px; font-weight:700; color:#E1306C; }
+.compare-box .small { font-size:11px; color:#555; margin-top:3px; }
+.word-list { display:flex; flex-wrap:wrap; gap:6px; }
+.word-chip { background:#1e1e1e; border:1px solid #2a2a2a; border-radius:20px; padding:4px 10px; font-size:12px; color:#ccc; }
+.word-chip.hot { background:#2e1020; border-color:#833AB4; color:#C13584; }
+.word-chip.save { background:#10202e; border-color:#405DE6; color:#5851DB; }
+.length-bar-wrap { display:flex; flex-direction:column; gap:8px; }
+.length-row { display:flex; align-items:center; gap:10px; }
+.length-label { font-size:11px; color:#666; width:160px; flex-shrink:0; }
+.length-bar-bg { flex:1; height:18px; background:#111; border-radius:4px; overflow:hidden; }
+.length-bar-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,#833AB4,#E1306C); display:flex; align-items:center; padding:0 8px; font-size:10px; font-weight:600; white-space:nowrap; }
+.length-stats { font-size:10px; color:#555; width:120px; flex-shrink:0; }
+.script-item { background:#111; border-radius:8px; padding:12px 14px; margin-bottom:8px; border-left:3px solid #833AB4; }
+.script-item .meta { font-size:10px; color:#555; margin-bottom:5px; }
+.script-item .hook { font-size:13px; color:#ddd; font-weight:500; margin-bottom:4px; }
+.script-item .body { font-size:11px; color:#666; line-height:1.5; }
+.script-item .metrics { display:flex; gap:12px; margin-top:8px; }
+.script-item .m { font-size:10px; color:#555; }
+.script-item .m span { color:#aaa; font-weight:600; }
+.no-data { text-align:center; padding:40px; color:#333; font-size:13px; }
+
+@media(max-width:768px){ .charts-grid,.patterns-grid { grid-template-columns:1fr; } }
+
+/* INSIGHTS */
+.insights-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
+.rec-card { background:#1a1a1a; border-radius:10px; padding:18px; border:1px solid #242424; }
+.rec-card h3 { font-size:11px; color:#555; text-transform:uppercase; letter-spacing:.8px; margin-bottom:14px; }
+.rec-card.full { grid-column:1/-1; }
+.rec-item { display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-bottom:1px solid #1e1e1e; }
+.rec-item:last-child { border:none; }
+.rec-icon { font-size:20px; flex-shrink:0; width:32px; text-align:center; }
+.rec-text { flex:1; }
+.rec-title { font-size:13px; color:#ddd; font-weight:600; margin-bottom:3px; }
+.rec-desc { font-size:11px; color:#555; line-height:1.5; }
+.rec-badge { font-size:10px; padding:2px 8px; border-radius:20px; background:#1e3a1e; color:#4caf50; display:inline-block; margin-top:4px; }
+.day-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-top:8px; }
+.day-cell { background:#111; border-radius:6px; padding:8px 4px; text-align:center; }
+.day-cell .dname { font-size:9px; color:#444; margin-bottom:4px; }
+.day-cell .dval { font-size:13px; font-weight:700; }
+.day-cell .dcount { font-size:9px; color:#333; margin-top:2px; }
+.trend-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.trend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.top-angle { background:#111; border-radius:8px; padding:10px 14px; margin-bottom:8px; border-left:3px solid #E1306C; }
+.top-angle .angle-title { font-size:13px; color:#ddd; font-weight:600; }
+.top-angle .angle-stats { font-size:11px; color:#555; margin-top:4px; }
+@media(max-width:768px){ .insights-grid { grid-template-columns:1fr; } }
+.mode-btn { background:#111; border:1px solid #2a2a2a; color:#555; padding:6px 14px; border-radius:20px; font-size:11px; cursor:pointer; transition:.2s; }
+.mode-btn:hover { border-color:#555; color:#aaa; }
+.mode-btn.active { background:#2e0a1a; border-color:#E1306C; color:#E1306C; font-weight:600; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>📊 Reels Analytics</h1>
+    <p id="subtitle">завантаження...</p>
+  </div>
+  <div class="sync-btns">
+    <button class="btn btn-ghost" id="btnWhisper" onclick="sync(true)">🎤 + Whisper</button>
+    <button class="btn btn-primary" id="btnSync" onclick="sync(false)">🔄 Оновити</button>
+  </div>
+</div>
+
+<div class="status-bar">
+  <span id="statusSpinner" style="display:none"><span class="spinner"></span></span>
+  <span id="statusMsg">Завантажую дані...</span>
+</div>
+<div class="progress-bar" id="progressBar" style="width:0%"></div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 Дашборд</div>
+  <div class="tab" data-tab="followers" onclick="switchTab('followers')">👥 Підписники</div>
+  <div class="tab" data-tab="patterns" onclick="switchTab('patterns')">🧠 Патерни мовлення</div>
+  <div class="tab" data-tab="scripts" onclick="switchTab('scripts')">📝 Скрипти</div>
+  <div class="tab" data-tab="insights" onclick="switchTab('insights')">💡 Інсайти</div>
+  <div class="tab" data-tab="generator" onclick="switchTab('generator')">✍️ Генератор</div>
+</div>
+
+<!-- TAB: DASHBOARD -->
+<div id="tab-dashboard" class="tab-content active">
+<div class="container">
+  <div class="stats-grid" id="statsGrid"></div>
+  <div class="charts-grid">
+    <div class="chart-card"><h3>👁 Перегляди (топ 20)</h3><canvas id="cViews"></canvas></div>
+    <div class="chart-card"><h3>🔥 ER% (топ 20 за ER)</h3><canvas id="cER"></canvas></div>
+    <div class="chart-card"><h3>📅 Перегляди в часі</h3><canvas id="cTimeline"></canvas></div>
+    <div class="chart-card"><h3>🔖 Saves vs 📤 Shares (топ 30)</h3><canvas id="cSaves"></canvas></div>
+  </div>
+  <div class="table-card">
+    <h3>Усі рілси</h3>
+    <div class="filter-bar">
+      <input id="search" placeholder="🔍 Пошук за підписом або скриптом..." oninput="renderTable()">
+      <select id="sortCol" onchange="renderTable()">
+        <option value="views">↓ Перегляди</option>
+        <option value="er">↓ ER%</option>
+        <option value="saves">↓ Saves</option>
+        <option value="shares">↓ Shares</option>
+        <option value="likes">↓ Вподобайки</option>
+        <option value="reach">↓ Охоплення</option>
+        <option value="date">↓ Дата</option>
+      </select>
+    </div>
+    <div id="tbl"></div>
+  </div>
+</div>
+</div>
+
+<!-- TAB: FOLLOWERS -->
+<div id="tab-followers" class="tab-content">
+<div class="container">
+  <div style="margin-bottom:16px">
+    <div style="background:#1a1a2e;border:1px solid #2a2a4a;border-radius:10px;padding:14px 18px;font-size:12px;color:#8888cc;line-height:1.6">
+      ⚠️ <strong style="color:#aaa">Meta не дає дані "follows per reel" без App Review.</strong>
+      Замість цього: приріст підписників по днях + маркери, коли вийшов кожен рілс —
+      так видно, який рілс дав стрибок.
+    </div>
+  </div>
+  <div class="chart-card" style="margin-bottom:16px">
+    <h3>👥 Приріст підписників по днях + дати рілсів</h3>
+    <canvas id="cFollowers" height="80"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>📈 Перегляди рілса vs приріст підписників того ж дня</h3>
+    <canvas id="cCorrelation" height="80"></canvas>
+  </div>
+</div>
+</div>
+
+<!-- TAB: PATTERNS -->
+<div id="tab-patterns" class="tab-content">
+<div class="container">
+  <div id="patternsContent"><div class="no-data">Завантажую аналіз...</div></div>
+</div>
+</div>
+
+<!-- TAB: SCRIPTS -->
+<div id="tab-scripts" class="tab-content">
+<div class="container">
+  <div id="scriptsContent"><div class="no-data">Завантажую скрипти...</div></div>
+</div>
+</div>
+
+<!-- TAB: INSIGHTS -->
+<div id="tab-insights" class="tab-content">
+<div class="container">
+  <div id="insightsContent"><div class="no-data">Завантажую інсайти...</div></div>
+</div>
+</div>
+
+<!-- TAB: GENERATOR -->
+<div id="tab-generator" class="tab-content">
+<div class="container">
+  <div style="max-width:800px;margin:0 auto">
+
+    <!-- API Key notice -->
+    <div id="keyNotice" style="background:#1a1a2e;border:1px solid #2a2a5a;border-radius:10px;padding:14px 18px;font-size:12px;color:#8888cc;margin-bottom:20px;display:none">
+      ⚠️ API-ключ Anthropic не заданий у .env. Введи ключ нижче (зберігається лише в браузері):
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input id="apiKeyInput" type="password" placeholder="sk-ant-..." style="background:#111;border:1px solid #2a2a5a;color:#fff;padding:7px 12px;border-radius:7px;font-size:12px;flex:1">
+        <button onclick="saveKey()" class="btn btn-primary" style="font-size:12px;padding:7px 14px">Зберегти</button>
+      </div>
+    </div>
+
+    <div class="insight-card" style="margin-bottom:16px">
+      <h3>✍️ Генератор скриптів — твій стиль, твої дані</h3>
+      <p style="font-size:12px;color:#555;margin-bottom:16px">Claude вивчить твої топ-рілси й напише скрипт у твоєму жвавому стилі</p>
+
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;color:#555;display:block;margin-bottom:6px">ТЕМА РІЛСА *</label>
+        <textarea id="genTopic" placeholder="Наприклад: чому більшість новачків кидають усе в перший місяць" rows="2" style="width:100%;background:#111;border:1px solid #2a2a2a;color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;resize:vertical;font-family:inherit"></textarea>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <label style="font-size:11px;color:#555;display:block;margin-bottom:6px">ДОДАТКОВО (необов'язково)</label>
+        <textarea id="genExtra" placeholder="Що хочеш підкреслити? Які факти додати? Який тон? Посилання на щось конкретне?" rows="2" style="width:100%;background:#111;border:1px solid #2a2a2a;color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;resize:vertical;font-family:inherit"></textarea>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button id="genBtn" onclick="generateScript()" class="btn btn-primary" style="padding:10px 24px;font-size:13px">
+          ✨ Згенерувати скрипт
+        </button>
+        <span id="genStatus" style="font-size:12px;color:#555"></span>
+      </div>
+    </div>
+
+    <!-- ВИЗУАЛЬНЫЙ АНАЛИЗ -->
+    <div class="insight-card" style="margin-bottom:16px">
+      <h3>🖼 Скрипт за зображенням / скріном / каруселлю</h3>
+      <p style="font-size:12px;color:#555;margin-bottom:14px">Завантаж будь-що — Claude подивиться й напише скрипт у твоєму стилі</p>
+
+      <!-- Режим -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px" id="modeButtons">
+        <button class="mode-btn active" data-mode="roast" onclick="setMode('roast')">🔥 Розібрати</button>
+        <button class="mode-btn" data-mode="discuss" onclick="setMode('discuss')">💬 Обговорити / висловитися</button>
+        <button class="mode-btn" data-mode="react" onclick="setMode('react')">😮 Реакція</button>
+        <button class="mode-btn" data-mode="custom" onclick="setMode('custom')">✏️ Своє завдання</button>
+      </div>
+
+      <div id="dropZone" onclick="document.getElementById('slideInput').click()"
+        style="border:2px dashed #2a2a2a;border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:.2s;margin-bottom:12px"
+        ondragover="event.preventDefault();this.style.borderColor='#E1306C'"
+        ondragleave="this.style.borderColor='#2a2a2a'"
+        ondrop="handleDrop(event)">
+        <div style="font-size:26px;margin-bottom:6px">📎</div>
+        <div style="font-size:12px;color:#555">Перетягни зображення або натисни</div>
+        <div style="font-size:10px;color:#333;margin-top:3px">JPG, PNG · одне або кілька</div>
+        <input type="file" id="slideInput" multiple accept="image/*" style="display:none" onchange="handleFiles(this.files)">
+      </div>
+
+      <div id="slidePreviews" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+
+      <div style="margin-bottom:14px">
+        <label style="font-size:11px;color:#555;display:block;margin-bottom:6px" id="extraLabel">ЩО ЦЕ / КОНТЕКСТ</label>
+        <textarea id="carouselExtra" rows="2" placeholder="Звідки це? Що за автор? Що хочеш сказати про це?" style="width:100%;background:#111;border:1px solid #2a2a2a;color:#fff;padding:8px 12px;border-radius:8px;font-size:12px;resize:vertical;font-family:inherit"></textarea>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button id="roastBtn" onclick="roastCarousel()" class="btn btn-primary" style="padding:10px 24px;font-size:13px">
+          ✨ Згенерувати скрипт
+        </button>
+        <button onclick="clearSlides()" class="btn btn-ghost" style="font-size:11px;padding:8px 14px">✕ Очистити</button>
+        <span id="roastStatus" style="font-size:12px;color:#555"></span>
+      </div>
+    </div>
+
+    <!-- Roast Result -->
+    <div id="roastResult" style="display:none;margin-bottom:20px">
+      <div class="insight-card" style="position:relative">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h3>🔥 Скрипт-розбір</h3>
+          <button onclick="copyRoast()" class="btn btn-ghost" style="font-size:11px;padding:5px 12px">📋 Копіювати</button>
+        </div>
+        <div id="roastOutput" style="font-size:13px;color:#ccc;line-height:1.7;white-space:pre-wrap"></div>
+      </div>
+    </div>
+
+    <div style="height:1px;background:#2a2a2a;margin:20px 0"></div>
+
+    <!-- Result -->
+    <div id="genResult" style="display:none">
+      <div class="insight-card" style="position:relative">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h3>🤖 Згенерований скрипт</h3>
+          <button onclick="copyScript()" class="btn btn-ghost" style="font-size:11px;padding:5px 12px">📋 Копіювати</button>
+        </div>
+        <div id="genOutput" style="font-size:13px;color:#ccc;line-height:1.7;white-space:pre-wrap"></div>
+      </div>
+
+      <!-- Quick stats about examples used -->
+      <div id="genMeta" style="margin-top:12px;font-size:11px;color:#444;text-align:center"></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script>
+let reels = [], analysis = {}, charts = {};
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if (name==='patterns' && analysis.total_reels) renderPatterns();
+  if (name==='scripts' && reels.length) renderScripts();
+  if (name==='followers') renderFollowers();
+  if (name==='insights' && reels.length) renderInsights();
+  if (name==='generator') initGenerator();
+}
+
+let followersData = {};
+async function renderFollowers() {
+  if (!Object.keys(followersData).length) {
+    const r = await fetch('/api/followers');
+    followersData = await r.json();
+  }
+
+  // Збираємо всі дати
+  const dates = Object.keys(followersData).sort();
+  const values = dates.map(d => followersData[d] || 0);
+
+  // Дати публікацій рілсів
+  const reelDates = {};
+  reels.forEach(r => {
+    if (!reelDates[r.date]) reelDates[r.date] = [];
+    reelDates[r.date].push(r);
+  });
+
+  // Маркери на графік
+  const pointColors = dates.map(d => reelDates[d] ? '#E1306C' : 'rgba(0,0,0,0)');
+  const pointSizes = dates.map(d => reelDates[d] ? 8 : 0);
+
+  if (charts.followers) charts.followers.destroy();
+  charts.followers = new Chart(document.getElementById('cFollowers'), {
+    type: 'bar',
+    data: {
+      labels: dates.map(d => d.slice(5)),
+      datasets: [
+        {
+          label: 'Приріст підписників',
+          data: values,
+          backgroundColor: dates.map(d => reelDates[d] ? 'rgba(225,48,108,0.8)' : 'rgba(131,58,180,0.4)'),
+          borderRadius: 3,
+        }
+      ]
+    },
+    options: {
+      plugins: {
+        legend: { labels: { color: '#666', font: { size: 10 } } },
+        tooltip: {
+          callbacks: {
+            afterLabel: (ctx) => {
+              const d = dates[ctx.dataIndex];
+              if (reelDates[d]) {
+                return reelDates[d].map(r => `🎬 ${r.views.toLocaleString()} views`);
+              }
+              return '';
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#444', font: { size: 9 } }, grid: { color: '#1a1a1a' } },
+        y: { ticks: { color: '#444' }, grid: { color: '#1a1a1a' } }
+      }
+    }
+  });
+
+  // Кореляція: перегляди рілса в день виходу vs приріст підписників
+  const corrData = [];
+  reels.forEach(r => {
+    const followers = followersData[r.date] || 0;
+    corrData.push({ x: r.views, y: followers, label: r.date });
+  });
+
+  if (charts.corr) charts.corr.destroy();
+  charts.corr = new Chart(document.getElementById('cCorrelation'), {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        label: 'Рілс (views vs +підписники)',
+        data: corrData,
+        backgroundColor: 'rgba(225,48,108,0.6)',
+        pointRadius: 6,
+      }]
+    },
+    options: {
+      plugins: { legend: { labels: { color: '#666', font: { size: 10 } } } },
+      scales: {
+        x: { title: { display: true, text: 'Перегляди рілса', color: '#555' }, ticks: { color: '#444' }, grid: { color: '#1a1a1a' } },
+        y: { title: { display: true, text: '+Підписники цього дня', color: '#555' }, ticks: { color: '#444' }, grid: { color: '#1a1a1a' } }
+      }
+    }
+  });
+}
+
+async function loadData() {
+  const [r1, r2] = await Promise.all([fetch('/api/reels'), fetch('/api/analysis')]);
+  const raw = await r1.json();
+  analysis = await r2.json();
+
+  reels = raw.map(r => {
+    const ins = r.insights||{};
+    const views = ins.views||0;
+    return {...r, views, reach:ins.reach||0, saves:ins.saved||0,
+      shares:ins.shares||0, interactions:ins.total_interactions||0,
+      likes:r.like_count||0, comments:r.comments_count||0,
+      er: views>0 ? Math.round((ins.total_interactions||0)/views*1000)/10 : 0,
+      save_rate: views>0 ? Math.round((ins.saved||0)/views*1000)/10 : 0,
+      date:(r.timestamp||'').slice(0,10), transcript:r.transcript||''};
+  });
+  reels.sort((a,b)=>b.views-a.views);
+  updateUI();
+  document.getElementById('statusMsg').textContent = 'Готово. Натисни «Оновити» для синхронізації з Instagram.';
+}
+
+function updateUI() {
+  if(!reels.length) return;
+  const tv=reels.reduce((s,r)=>s+r.views,0), tr=reels.reduce((s,r)=>s+r.reach,0);
+  const ts=reels.reduce((s,r)=>s+r.saves,0), tsh=reels.reduce((s,r)=>s+r.shares,0);
+  const av=Math.round(tv/reels.length), aer=(reels.reduce((s,r)=>s+r.er,0)/reels.length).toFixed(1);
+  const wt=reels.filter(r=>r.transcript).length;
+
+  document.getElementById('subtitle').textContent = `${reels.length} рілсів · ${wt} транскриптів`;
+  document.getElementById('statsGrid').innerHTML = [
+    ['Рілсів',reels.length,''],['👁 Перегляди',tv.toLocaleString(),'сумарно'],
+    ['👥 Охоплення',tr.toLocaleString(),'сумарно'],['Avg перегляди',av.toLocaleString(),'на рілс'],
+    ['Avg ER%',aer+'%','engagement'],['🔖 Saves',ts.toLocaleString(),'сумарно'],
+    ['📤 Shares',tsh.toLocaleString(),'сумарно'],['🎤 Скрипти',wt+'/'+reels.length,'Whisper'],
+  ].map(([l,v,s])=>`<div class="stat-card"><div class="lbl">${l}</div><div class="val">${v}</div>${s?`<div class="sub">${s}</div>`:''}</div>`).join('');
+
+  buildCharts(); renderTable();
+}
+
+function buildCharts() {
+  const co = (cfg) => ({...cfg, options:{...cfg.options, plugins:{legend:{display:false,...cfg.options?.plugins?.legend}}, scales:{x:{ticks:{color:'#444',font:{size:9}},grid:{color:'#1a1a1a'}},y:{ticks:{color:'#444'},grid:{color:'#1a1a1a'}},...cfg.options?.scales}}});
+  const top20=reels.slice(0,20), topER=[...reels].sort((a,b)=>b.er-a.er).slice(0,20);
+  const tl=[...reels].sort((a,b)=>a.date.localeCompare(b.date)), top30=reels.slice(0,30);
+
+  ['v','e','t','s'].forEach(k=>{ if(charts[k]){charts[k].destroy();} });
+
+  charts.v=new Chart(document.getElementById('cViews'),co({type:'bar',data:{labels:top20.map((_,i)=>`#${i+1}`),datasets:[{data:top20.map(r=>r.views),backgroundColor:'rgba(225,48,108,0.7)',borderRadius:4}]},options:{}}));
+  charts.e=new Chart(document.getElementById('cER'),co({type:'bar',data:{labels:topER.map(r=>r.date.slice(5)),datasets:[{data:topER.map(r=>r.er),backgroundColor:'rgba(131,58,180,0.7)',borderRadius:4}]},options:{}}));
+  charts.t=new Chart(document.getElementById('cTimeline'),{type:'line',data:{labels:tl.map(r=>r.date.slice(5)),datasets:[{label:'Перегляди',data:tl.map(r=>r.views),borderColor:'#E1306C',backgroundColor:'rgba(225,48,108,0.08)',fill:true,tension:.4,pointRadius:2}]},options:{plugins:{legend:{labels:{color:'#555',font:{size:10}}}},scales:{x:{ticks:{color:'#444',font:{size:9}},grid:{color:'#1a1a1a'}},y:{ticks:{color:'#444'},grid:{color:'#1a1a1a'}}}}});
+  charts.s=new Chart(document.getElementById('cSaves'),{type:'bar',data:{labels:top30.map(r=>r.date.slice(5)),datasets:[{label:'Saves',data:top30.map(r=>r.saves),backgroundColor:'rgba(64,93,230,0.7)',borderRadius:3},{label:'Shares',data:top30.map(r=>r.shares),backgroundColor:'rgba(225,48,108,0.7)',borderRadius:3}]},options:{plugins:{legend:{labels:{color:'#555',font:{size:10}}}},scales:{x:{ticks:{color:'#444',font:{size:9}},grid:{color:'#1a1a1a'}},y:{ticks:{color:'#444'},grid:{color:'#1a1a1a'}}}}});
+}
+
+function renderTable() {
+  const q=document.getElementById('search').value.toLowerCase(), col=document.getElementById('sortCol').value;
+  const maxV=Math.max(...reels.map(r=>r.views));
+  let data=reels.filter(r=>!q||(r.caption||'').toLowerCase().includes(q)||(r.transcript||'').toLowerCase().includes(q));
+  data.sort((a,b)=>col==='date'?b.date.localeCompare(a.date):b[col]-a[col]);
+  if(!data.length){document.getElementById('tbl').innerHTML='<div class="no-data">Нічого не знайдено</div>';return;}
+  const badge=er=>er>=5?`<span class="badge hi">${er}%</span>`:er>=2?`<span class="badge md">${er}%</span>`:`<span class="badge lo">${er}%</span>`;
+  document.getElementById('tbl').innerHTML=`<table><thead><tr><th>#</th><th>Дата</th><th>Підпис</th><th>👁 Views</th><th>👥 Reach</th><th>❤️</th><th>🔖</th><th>📤</th><th>ER%</th><th>🎤 Скрипт</th><th></th></tr></thead><tbody>${data.map((r,i)=>`<tr><td style="color:#333">${i+1}</td><td style="color:#555;white-space:nowrap">${r.date}</td><td class="caption-cell" title="${(r.caption||'').replace(/"/g,'')}">${r.caption?r.caption.slice(0,50)+(r.caption.length>50?'…':''):'<span style="color:#2a2a2a">—</span>'}</td><td><div class="bar-wrap"><strong>${r.views.toLocaleString()}</strong><div class="mini-bar"><div class="mini-bar-fill" style="width:${Math.round(r.views/maxV*100)}%"></div></div></div></td><td>${r.reach.toLocaleString()}</td><td>${r.likes}</td><td>${r.saves}</td><td>${r.shares}</td><td>${badge(r.er)}</td><td class="transcript-cell" title="${(r.transcript||'').replace(/"/g,'')}">${r.transcript||'<span style="color:#2a2a2a">—</span>'}</td><td><a class="ig" href="${r.permalink}" target="_blank">↗</a></td></tr>`).join('')}</tbody></table>`;
+}
+
+function renderPatterns() {
+  const a = analysis;
+  if(!a.total_reels){document.getElementById('patternsContent').innerHTML='<div class="no-data">Немає даних для аналізу. Спочатку запусти «🎤 + Whisper»</div>';return;}
+
+  const la = a.length_analysis||{};
+  const maxAvgViews = Math.max(...Object.values(la).map(v=>v.avg_views||0));
+  const lengthHTML = Object.entries(la).map(([k,v])=>`
+    <div class="length-row">
+      <div class="length-label">${k}</div>
+      <div class="length-bar-bg"><div class="length-bar-fill" style="width:${Math.round((v.avg_views||0)/maxAvgViews*100)}%">${(v.avg_views||0).toLocaleString()} views</div></div>
+      <div class="length-stats">ER ${v.avg_er||0}% · ${v.count} рілс</div>
+    </div>`).join('');
+
+  const qs = a.questions_vs_statements||{};
+  const cs = a.casualness||{};
+  const hw = (a.hook_winners||[]).slice(0,12);
+  const ww = (a.word_winners||[]).slice(0,15);
+  const sw = (a.save_words||[]).slice(0,12);
+
+  document.getElementById('patternsContent').innerHTML = `
+  <div class="patterns-grid">
+
+    <!-- Длина скрипта -->
+    <div class="insight-card full">
+      <h3>📏 Довжина скрипта vs Перегляди — твій жвавий стиль працює!</h3>
+      <div class="length-bar-wrap">${lengthHTML}</div>
+    </div>
+
+    <!-- Вопросы vs утверждения -->
+    <div class="insight-card">
+      <h3>❓ Питання на початку vs без питання</h3>
+      <div class="compare-row">
+        <div class="compare-box">
+          <div class="label">З питанням у хуку</div>
+          <div class="big">${(qs.with_question?.avg_views||0).toLocaleString()}</div>
+          <div class="small">avg views · ER ${qs.with_question?.avg_er||0}% · ${qs.with_question?.count||0} рілс</div>
+        </div>
+        <div class="compare-box">
+          <div class="label">Без питання</div>
+          <div class="big">${(qs.without_question?.avg_views||0).toLocaleString()}</div>
+          <div class="small">avg views · ER ${qs.without_question?.avg_er||0}% · ${qs.without_question?.count||0} рілс</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Разговорность -->
+    <div class="insight-card">
+      <h3>🔥 Розмовність/неформальність vs нейтральність</h3>
+      <div class="compare-row">
+        <div class="compare-box">
+          <div class="label">Розмовний (неформальний)</div>
+          <div class="big">${(cs.high_casual?.avg_views||0).toLocaleString()}</div>
+          <div class="small">avg views · ER ${cs.high_casual?.avg_er||0}% · saves ${cs.high_casual?.avg_saves||0} · ${cs.high_casual?.count||0} рілс</div>
+        </div>
+        <div class="compare-box">
+          <div class="label">Нейтральний</div>
+          <div class="big">${(cs.low_casual?.avg_views||0).toLocaleString()}</div>
+          <div class="small">avg views · ER ${cs.low_casual?.avg_er||0}% · saves ${cs.low_casual?.avg_saves||0} · ${cs.low_casual?.count||0} рілс</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Слова в хуках -->
+    <div class="insight-card">
+      <h3>🎣 Слова в хуках топ-рілсів (перші 15 слів)</h3>
+      <p style="font-size:11px;color:#444;margin-bottom:10px">Ці слова на початку = більше переглядів</p>
+      <div class="word-list">
+        ${hw.map(w=>`<div class="word-chip hot" title="трапляється в ${Math.round(w.top_freq*100)}% топ-рілсів">${w.word} ×${w.lift}</div>`).join('')}
+      </div>
+    </div>
+
+    <!-- Слова победители -->
+    <div class="insight-card">
+      <h3>🏆 Слова з топ-рілсів vs слабких</h3>
+      <p style="font-size:11px;color:#444;margin-bottom:10px">Ці слова частіше трапляються у вірусних рілсах</p>
+      <div class="word-list">
+        ${ww.map(w=>`<div class="word-chip hot" title="lift ${w.lift}x">${w.word} ×${w.lift}</div>`).join('')}
+      </div>
+    </div>
+
+    <!-- Save-words -->
+    <div class="insight-card">
+      <h3>🔖 Слова, після яких зберігають</h3>
+      <p style="font-size:11px;color:#444;margin-bottom:10px">Трапляються в рілсах із високим save rate</p>
+      <div class="word-list">
+        ${sw.map(w=>`<div class="word-chip save">${w.word}</div>`).join('')}
+      </div>
+    </div>
+
+    <!-- Топ хуки -->
+    <div class="insight-card full">
+      <h3>🚀 Хуки топ-10 рілсів — вчись у себе</h3>
+      ${(a.top10_scripts||[]).slice(0,10).map(r=>`
+        <div class="script-item">
+          <div class="meta">${r.date} · ${r.word_count} слів</div>
+          <div class="hook">"${r.hook}..."</div>
+          <div class="metrics">
+            <div class="m">👁 <span>${(r.views||0).toLocaleString()}</span></div>
+            <div class="m">ER <span>${r.er}%</span></div>
+            <div class="m">🔖 <span>${r.saves}</span></div>
+            <div class="m">📤 <span>${r.shares}</span></div>
+          </div>
+        </div>`).join('')}
+    </div>
+
+  </div>`;
+}
+
+function renderScripts() {
+  const sorted = [...reels].filter(r=>r.transcript).sort((a,b)=>b.views-a.views);
+  if(!sorted.length){document.getElementById('scriptsContent').innerHTML='<div class="no-data">Немає транскриптів. Запусти 🎤 + Whisper</div>';return;}
+  document.getElementById('scriptsContent').innerHTML = `
+    <div style="margin-bottom:14px;display:flex;gap:10px;flex-wrap:wrap">
+      <input id="scriptSearch" placeholder="🔍 Пошук за скриптом..." oninput="filterScripts()" style="background:#1a1a1a;border:1px solid #2a2a2a;color:#fff;padding:7px 12px;border-radius:7px;font-size:12px;flex:1;min-width:200px">
+      <select id="scriptSort" onchange="filterScripts()" style="background:#1a1a1a;border:1px solid #2a2a2a;color:#fff;padding:7px 12px;border-radius:7px;font-size:12px;cursor:pointer">
+        <option value="views">↓ Перегляди</option>
+        <option value="saves">↓ Saves</option>
+        <option value="er">↓ ER%</option>
+      </select>
+    </div>
+    <div id="scriptsList"></div>`;
+  filterScripts();
+}
+
+function filterScripts() {
+  const q=(document.getElementById('scriptSearch')||{value:''}).value.toLowerCase();
+  const col=(document.getElementById('scriptSort')||{value:'views'}).value;
+  let data=[...reels].filter(r=>r.transcript&&(!q||r.transcript.toLowerCase().includes(q)));
+  data.sort((a,b)=>b[col]-a[col]);
+  document.getElementById('scriptsList').innerHTML=data.map(r=>`
+    <div class="script-item">
+      <div class="meta">${r.date} · ${r.transcript.split(' ').length} слів</div>
+      <div class="hook" style="margin-bottom:6px">${r.transcript.split(' ').slice(0,18).join(' ')}...</div>
+      <div class="body">${r.transcript}</div>
+      <div class="metrics" style="margin-top:8px">
+        <div class="m">👁 <span>${r.views.toLocaleString()}</span></div>
+        <div class="m">ER <span>${r.er}%</span></div>
+        <div class="m">🔖 <span>${r.saves}</span></div>
+        <div class="m">📤 <span>${r.shares}</span></div>
+        <div class="m"><a class="ig" href="${r.permalink}" target="_blank">↗ Instagram</a></div>
+      </div>
+    </div>`).join('');
+}
+
+function renderInsights() {
+  if (!reels.length) return;
+  const el = document.getElementById('insightsContent');
+
+  // --- Перегляди по днях тижня ---
+  const days = ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'];
+  const dayData = days.map(()=>({views:[], count:0}));
+  reels.forEach(r => {
+    if (!r.date || !r.views) return;
+    const dow = (new Date(r.date).getDay()+6)%7; // 0=Пн
+    dayData[dow].views.push(r.views);
+    dayData[dow].count++;
+  });
+  const dayAvg = dayData.map(d => d.count ? Math.round(d.views.reduce((a,b)=>a+b,0)/d.count) : 0);
+  const maxDayAvg = Math.max(...dayAvg, 1);
+  const bestDay = dayAvg.indexOf(Math.max(...dayAvg));
+  const dayHTML = days.map((d,i) => {
+    const pct = Math.round(dayAvg[i]/maxDayAvg*100);
+    const color = i===bestDay ? '#E1306C' : (pct>60?'#833AB4':'#333');
+    return `<div class="day-cell"><div class="dname">${d}</div><div class="dval" style="color:${color}">${dayAvg[i]?dayAvg[i].toLocaleString():'-'}</div><div class="dcount">${dayData[i].count} рілс</div></div>`;
+  }).join('');
+
+  // --- Тренд продуктивності (помісячно) ---
+  const monthly = {};
+  reels.forEach(r => {
+    const m = (r.date||'').slice(0,7);
+    if (!m) return;
+    if (!monthly[m]) monthly[m] = {views:[], er:[]};
+    monthly[m].views.push(r.views);
+    monthly[m].er.push(r.er);
+  });
+  const monthKeys = Object.keys(monthly).sort();
+  const monthAvg = monthKeys.map(m => ({
+    m, views: Math.round(monthly[m].views.reduce((a,b)=>a+b,0)/monthly[m].views.length),
+    er: (monthly[m].er.reduce((a,b)=>a+b,0)/monthly[m].er.length).toFixed(1),
+    cnt: monthly[m].views.length
+  }));
+  const trendUp = monthAvg.length>=2 && monthAvg[monthAvg.length-1].views > monthAvg[0].views;
+  const trendPct = monthAvg.length>=2 ? Math.round((monthAvg[monthAvg.length-1].views/Math.max(monthAvg[0].views,1)-1)*100) : 0;
+
+  // --- Збереження vs репости: що працює ---
+  const avgSaveRate = (reels.reduce((s,r)=>s+r.save_rate,0)/reels.length).toFixed(1);
+  const avgShareRate = (reels.reduce((s,r)=>s+(r.views>0?r.shares/r.views*100:0),0)/reels.length).toFixed(2);
+  const topSaved = [...reels].sort((a,b)=>b.save_rate-a.save_rate).slice(0,3);
+  const topShared = [...reels].sort((a,b)=>b.shares-a.shares).slice(0,3);
+
+  // --- Довжина скрипта: рекомендація ---
+  const la = analysis.length_analysis || {};
+  let bestLen = '', bestLenViews = 0;
+  Object.entries(la).forEach(([k,v])=>{ if((v.avg_views||0)>bestLenViews){bestLenViews=v.avg_views;bestLen=k;} });
+
+  // --- Рекомендації «на що тиснути» ---
+  const qs = analysis.questions_vs_statements||{};
+  const cs = analysis.casualness||{};
+  const qBetter = (qs.with_question?.avg_views||0) > (qs.without_question?.avg_views||0);
+  const casualBetter = (cs.high_casual?.avg_views||0) > (cs.low_casual?.avg_views||0);
+  const hookWords = (analysis.hook_winners||[]).slice(0,5).map(w=>w.word);
+
+  // --- Топ-теми через ключові слова (із save_words + word_winners) ---
+  const topWords = (analysis.word_winners||[]).slice(0,8).map(w=>w.word);
+
+  // Динаміка по місяцях HTML
+  const maxMV = Math.max(...monthAvg.map(m=>m.views),1);
+  const monthHTML = monthAvg.map((m,i) => {
+    const pct = Math.round(m.views/maxMV*100);
+    const prev = i>0 ? monthAvg[i-1].views : m.views;
+    const delta = m.views-prev;
+    const arrow = delta>0?'↑':delta<0?'↓':'→';
+    const acol = delta>0?'#4caf50':delta<0?'#f44336':'#666';
+    return `<div class="trend-row"><div class="trend-dot" style="background:${delta>0?'#4caf50':delta<0?'#f44336':'#555'}"></div><div style="flex:1"><div style="display:flex;justify-content:space-between;font-size:12px;color:#ccc;margin-bottom:3px"><span>${m.m}</span><span>${m.views.toLocaleString()} avg <span style="color:${acol};font-size:10px">${arrow}${Math.abs(delta).toLocaleString()}</span></span></div><div style="height:4px;background:#111;border-radius:2px"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#833AB4,#E1306C);border-radius:2px"></div></div></div><div style="font-size:10px;color:#444;margin-left:6px;width:40px">ER ${m.er}%</div></div>`;
+  }).join('');
+
+  el.innerHTML = `
+  <div class="insights-grid">
+
+    <!-- НА ЩО ТИСНУТИ: головні рекомендації -->
+    <div class="rec-card full">
+      <h3>🎯 На що тиснути — сигнали з твоїх даних</h3>
+      <div class="rec-item">
+        <div class="rec-icon">📏</div>
+        <div class="rec-text">
+          <div class="rec-title">Довжина скрипта: ${bestLen || '150+ слів'}</div>
+          <div class="rec-desc">Найсильніший сигнал у твоїх даних — що довший скрипт, то більше переглядів. Avg у найкращих: ${bestLenViews.toLocaleString()} views. Жвавий стиль реально працює — не скорочуй.</div>
+          <span class="rec-badge">✅ Підтверджено даними</span>
+        </div>
+      </div>
+      <div class="rec-item">
+        <div class="rec-icon">${qBetter?'❓':'💬'}</div>
+        <div class="rec-text">
+          <div class="rec-title">Хук: ${qBetter?'починай з питання':'починай з твердження'}</div>
+          <div class="rec-desc">${qBetter?`Рілси з питанням на початку дають ${(qs.with_question?.avg_views||0).toLocaleString()} vs ${(qs.without_question?.avg_views||0).toLocaleString()} без питання. Питання = тригер зупинки скролу.`:`Прямі твердження в тебе працюють краще за питання. ${(qs.without_question?.avg_views||0).toLocaleString()} vs ${(qs.with_question?.avg_views||0).toLocaleString()} views.`}</div>
+          <span class="rec-badge">✅ Підтверджено даними</span>
+        </div>
+      </div>
+      <div class="rec-item">
+        <div class="rec-icon">${casualBetter?'🔥':'🎭'}</div>
+        <div class="rec-text">
+          <div class="rec-title">Стиль: ${casualBetter?'розмовний/неформальний працює':'нейтральний стиль працює краще'}</div>
+          <div class="rec-desc">${casualBetter?`Розмовний неформальний стиль дає ${(cs.high_casual?.avg_views||0).toLocaleString()} vs ${(cs.low_casual?.avg_views||0).toLocaleString()} avg views. Автентичність = перегляди.`:`Нейтральний стиль у тебе дає ${(cs.low_casual?.avg_views||0).toLocaleString()} vs ${(cs.high_casual?.avg_views||0).toLocaleString()} у неформальних.`}</div>
+          <span class="rec-badge">✅ Підтверджено даними</span>
+        </div>
+      </div>
+      ${hookWords.length ? `<div class="rec-item"><div class="rec-icon">🎣</div><div class="rec-text"><div class="rec-title">Слова-магніти в хуку</div><div class="rec-desc">Ці слова в перших 15 словах корелюють із вірусністю: <strong style="color:#C13584">${hookWords.join(', ')}</strong>. Вставляй їх на початок скрипта.</div><span class="rec-badge">✅ Підтверджено даними</span></div></div>` : ''}
+      ${topWords.length ? `<div class="rec-item"><div class="rec-icon">🏆</div><div class="rec-text"><div class="rec-title">Теми/слова топ-рілсів</div><div class="rec-desc">Слова, які частіше трапляються у твоїх найкращих рілсах: <strong style="color:#5851DB">${topWords.join(', ')}</strong>. Будуй теми навколо них.</div><span class="rec-badge">✅ Підтверджено даними</span></div></div>` : ''}
+      <div class="rec-item">
+        <div class="rec-icon">📅</div>
+        <div class="rec-text">
+          <div class="rec-title">Найкращий день для публікації: ${days[bestDay]}</div>
+          <div class="rec-desc">Avg переглядів у ${days[bestDay]}: ${dayAvg[bestDay].toLocaleString()}. Дивись сітку нижче по всіх днях.</div>
+          <span class="rec-badge">✅ Підтверджено даними</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Динамика по месяцам -->
+    <div class="rec-card">
+      <h3>📈 Динаміка: чи росте канал?</h3>
+      <div style="margin-bottom:12px;padding:10px 14px;background:${trendUp?'#0d2e0d':'#2e0d0d'};border-radius:8px;font-size:13px;color:${trendUp?'#4caf50':'#f44336'}">
+        ${trendUp?`⬆️ +${trendPct}% до початку періоду — ростеш`:`⬇️ ${trendPct}% до початку періоду — спад`}
+      </div>
+      ${monthHTML}
+    </div>
+
+    <!-- Дни недели -->
+    <div class="rec-card">
+      <h3>📅 Перегляди по днях тижня (avg)</h3>
+      <div class="day-grid">${dayHTML}</div>
+      <p style="font-size:10px;color:#333;margin-top:10px">Колір = найкращий день. Враховуй день публікації та день перегляду.</p>
+    </div>
+
+    <!-- Save vs Share -->
+    <div class="rec-card">
+      <h3>🔖 Що зберігають vs що репостять</h3>
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;color:#555;margin-bottom:8px">Avg save rate: <strong style="color:#405DE6">${avgSaveRate}%</strong> · Avg share rate: <strong style="color:#E1306C">${avgShareRate}%</strong></div>
+        <p style="font-size:11px;color:#444;margin-bottom:10px">Топ за збереженнями (=освітній/корисний контент):</p>
+        ${topSaved.map(r=>`<div class="top-angle"><div class="angle-title">${(r.transcript||'').split(' ').slice(0,10).join(' ')}...</div><div class="angle-stats">🔖 ${r.save_rate}% save rate · ${r.saves} збережень · ${r.views.toLocaleString()} views</div></div>`).join('')}
+      </div>
+      <p style="font-size:11px;color:#444;margin:10px 0 8px">Топ за репостами (=вірусний/розважальний контент):</p>
+      ${topShared.map(r=>`<div class="top-angle" style="border-left-color:#E1306C"><div class="angle-title">${(r.transcript||'').split(' ').slice(0,10).join(' ')}...</div><div class="angle-stats">📤 ${r.shares} репостів · ${r.views.toLocaleString()} views · save ${r.saves}</div></div>`).join('')}
+    </div>
+
+    <!-- Распределение просмотров -->
+    <div class="rec-card full">
+      <h3>📊 Загальна картина: розподіл переглядів</h3>
+      <canvas id="cInsightsDist" height="60"></canvas>
+    </div>
+
+  </div>`;
+
+  // Chart: розподіл переглядів у часі з ковзним середнім
+  const sorted = [...reels].filter(r=>r.date).sort((a,b)=>a.date.localeCompare(b.date));
+  const ma = sorted.map((_,i,arr) => {
+    const window = arr.slice(Math.max(0,i-4),i+1);
+    return Math.round(window.reduce((s,r)=>s+r.views,0)/window.length);
+  });
+  if (charts.insightsDist) charts.insightsDist.destroy();
+  charts.insightsDist = new Chart(document.getElementById('cInsightsDist'), {
+    type: 'bar',
+    data: {
+      labels: sorted.map(r=>r.date.slice(5)),
+      datasets: [
+        { label: 'Перегляди', data: sorted.map(r=>r.views), backgroundColor: 'rgba(131,58,180,0.4)', borderRadius: 2 },
+        { label: 'Ковзне avg (5)', data: ma, type: 'line', borderColor: '#E1306C', backgroundColor: 'transparent', tension: 0.4, pointRadius: 0, borderWidth: 2 }
+      ]
+    },
+    options: {
+      plugins: { legend: { labels: { color: '#555', font: { size: 10 } } } },
+      scales: { x: { ticks: { color: '#333', font: { size: 8 } }, grid: { color: '#1a1a1a' } }, y: { ticks: { color: '#444' }, grid: { color: '#1a1a1a' } } }
+    }
+  });
+}
+
+// ── VISUAL SCRIPT ──
+let slideFiles = [];
+let currentMode = 'roast';
+
+const modeCfg = {
+  roast:   { label: '🔥 Розібрати', extra: 'Звідки це? Що за автор? Чим особливо дратує?', btn: '🔥 Розібрати' },
+  discuss: { label: '💬 Обговорити', extra: 'Про що хочеш висловитися? Твоя позиція?', btn: '💬 Написати скрипт' },
+  react:   { label: '😮 Реакція', extra: 'Контекст — що це таке?', btn: '😮 Написати реакцію' },
+  custom:  { label: '✏️ Своє', extra: 'Опиши, що саме зробити з цим контентом', btn: '✨ Згенерувати' },
+};
+
+function setMode(m) {
+  currentMode = m;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+  document.getElementById('carouselExtra').placeholder = modeCfg[m].extra;
+  document.getElementById('roastBtn').textContent = modeCfg[m].btn;
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').style.borderColor = '#2a2a2a';
+  handleFiles(e.dataTransfer.files);
+}
+
+function handleFiles(files) {
+  const arr = Array.from(files).filter(f => f.type.startsWith('image/'));
+  arr.sort((a,b) => a.name.localeCompare(b.name));
+  slideFiles = [...slideFiles, ...arr];
+  renderPreviews();
+}
+
+function renderPreviews() {
+  const el = document.getElementById('slidePreviews');
+  if (!slideFiles.length) { el.innerHTML = ''; return; }
+  el.innerHTML = slideFiles.map((f,i) => {
+    const url = URL.createObjectURL(f);
+    return `<div style="position:relative;flex-shrink:0">
+      <img src="${url}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:2px solid #2a2a2a">
+      <div style="position:absolute;top:-4px;left:-4px;width:16px;height:16px;background:#E1306C;border-radius:50%;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;color:#fff">${i+1}</div>
+      <div onclick="removeSlide(${i})" style="position:absolute;top:-4px;right:-4px;width:16px;height:16px;background:#333;border-radius:50%;font-size:9px;display:flex;align-items:center;justify-content:center;color:#aaa;cursor:pointer">✕</div>
+    </div>`;
+  }).join('');
+}
+
+function removeSlide(i) {
+  slideFiles.splice(i, 1);
+  renderPreviews();
+}
+
+function clearSlides() {
+  slideFiles = [];
+  renderPreviews();
+  document.getElementById('roastResult').style.display = 'none';
+  document.getElementById('roastStatus').textContent = '';
+}
+
+async function roastCarousel() {
+  if (!slideFiles.length) {
+    document.getElementById('roastStatus').textContent = '⚠️ Завантаж слайди';
+    return;
+  }
+  const btn = document.getElementById('roastBtn');
+  const statusEl = document.getElementById('roastStatus');
+  btn.disabled = true;
+  btn.textContent = '⏳ Розбираю...';
+  statusEl.textContent = `Claude читає ${slideFiles.length} слайдів...`;
+  document.getElementById('roastResult').style.display = 'none';
+
+  const fd = new FormData();
+  slideFiles.forEach(f => fd.append('slides', f));
+  fd.append('extra', document.getElementById('carouselExtra').value);
+  fd.append('mode', currentMode);
+
+  try {
+    const res = await fetch('/api/roast_carousel', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.error) {
+      statusEl.textContent = '❌ ' + data.error;
+    } else {
+      document.getElementById('roastOutput').textContent = data.result;
+      document.getElementById('roastResult').style.display = 'block';
+      statusEl.textContent = `✅ Готово · ${data.slides_count} слайдів`;
+      document.getElementById('roastResult').scrollIntoView({behavior:'smooth'});
+    }
+  } catch(e) {
+    statusEl.textContent = '❌ Помилка: ' + e.message;
+  }
+  btn.disabled = false;
+  btn.textContent = '🔥 Розібрати карусель';
+}
+
+function copyRoast() {
+  navigator.clipboard.writeText(document.getElementById('roastOutput').textContent).then(() => {
+    const btn = event.target;
+    btn.textContent = '✅ Скопійовано!';
+    setTimeout(() => btn.textContent = '📋 Копіювати', 2000);
+  });
+}
+
+function initGenerator() {
+  // Check if API key needed
+  const savedKey = localStorage.getItem('anthropic_key');
+  if (savedKey) document.getElementById('apiKeyInput').value = savedKey;
+  // Show key notice — server will tell us if key is missing when we generate
+}
+
+function saveKey() {
+  const k = document.getElementById('apiKeyInput').value.trim();
+  if (k) { localStorage.setItem('anthropic_key', k); alert('Ключ збережено!'); }
+}
+
+async function generateScript() {
+  const topic = document.getElementById('genTopic').value.trim();
+  const extra = document.getElementById('genExtra').value.trim();
+  if (!topic) { document.getElementById('genTopic').focus(); return; }
+
+  const btn = document.getElementById('genBtn');
+  const statusEl = document.getElementById('genStatus');
+  btn.disabled = true;
+  btn.textContent = '⏳ Думаю...';
+  statusEl.textContent = 'Claude аналізує твої топ-рілси...';
+  document.getElementById('genResult').style.display = 'none';
+
+  const savedKey = localStorage.getItem('anthropic_key') || '';
+
+  try {
+    const res = await fetch('/api/generate_script', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic, extra, api_key: savedKey })
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      if (data.error.includes('API ключа')) {
+        document.getElementById('keyNotice').style.display = 'block';
+      }
+      statusEl.textContent = '❌ ' + data.error;
+    } else {
+      document.getElementById('genOutput').textContent = data.result;
+      document.getElementById('genResult').style.display = 'block';
+      const wc = data.word_count || 0;
+      const wcColor = wc > 120 ? '#f44336' : wc > 0 ? '#4caf50' : '#555';
+      document.getElementById('genMeta').innerHTML = `Згенеровано на основі ${reels.filter(r=>r.transcript).length} рілсів &nbsp;·&nbsp; <span style="color:${wcColor};font-weight:600">${wc} слів ${wc > 120 ? '⚠️ перевищено ліміт' : wc > 0 ? '✅' : ''}</span>`;
+      statusEl.textContent = '✅ Готово!';
+      document.getElementById('genResult').scrollIntoView({behavior:'smooth', block:'start'});
+    }
+  } catch(e) {
+    statusEl.textContent = '❌ Помилка мережі: ' + e.message;
+  }
+
+  btn.disabled = false;
+  btn.textContent = '✨ Згенерувати скрипт';
+}
+
+function copyScript() {
+  const text = document.getElementById('genOutput').textContent;
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn = event.target;
+    btn.textContent = '✅ Скопійовано!';
+    setTimeout(()=>btn.textContent='📋 Копіювати', 2000);
+  });
+}
+
+async function sync(withWhisper) {
+  if(document.getElementById('btnSync').disabled) return;
+  document.getElementById('btnSync').disabled=true;
+  document.getElementById('btnWhisper').disabled=true;
+  await fetch(`/api/sync?whisper=${withWhisper?1:0}`);
+  pollStatus();
+}
+
+function pollStatus() {
+  const iv=setInterval(async()=>{
+    const s=await(await fetch('/api/status')).json();
+    document.getElementById('statusSpinner').style.display=s.running?'':'none';
+    document.getElementById('statusMsg').textContent=s.message;
+    if(s.total>0) document.getElementById('progressBar').style.width=Math.round(s.progress/s.total*100)+'%';
+    if(!s.running){
+      clearInterval(iv);
+      document.getElementById('btnSync').disabled=false;
+      document.getElementById('btnWhisper').disabled=false;
+      document.getElementById('progressBar').style.width='100%';
+      setTimeout(()=>document.getElementById('progressBar').style.width='0%',2000);
+      // Перезапускаємо аналіз патернів
+      await fetch('/api/reanalyze');
+      await new Promise(r=>setTimeout(r,3000));
+      await loadData();
+    }
+  },1000);
+}
+
+loadData();
+</script>
+</body>
+</html>

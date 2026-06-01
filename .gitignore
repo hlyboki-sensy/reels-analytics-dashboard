@@ -1,0 +1,28 @@
+# Секрети — НІКОЛИ не комітимо
+.env
+
+# Дані акаунта (приватне!)
+reels_data.json
+analysis.json
+
+# Завантажені відео / транскрипти
+audio/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Системне / редактори
+.DS_Store
+.idea/
+.vscode/
+
+# Легасі-скрипти автора оригіналу (не входять у пакет)
+build_dashboard.py
+fetch_reels.py
+make_guide.py
+make_guide_claude.py
+transcribe_all.py
