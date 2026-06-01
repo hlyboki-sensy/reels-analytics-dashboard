@@ -485,5 +485,6 @@ if __name__ == "__main__":
     if not os.path.exists(DATA_FILE):
         print("📥 Перший запуск — завантажую дані...")
         sync_reels(False)
-    print("🚀 Дашборд: http://localhost:8080")
-    app.run(port=8080, debug=False)
+    port = int(os.environ.get("PORT", "8080"))
+    print(f"🚀 Дашборд: http://localhost:{port}")
+    app.run(port=port, debug=False)
