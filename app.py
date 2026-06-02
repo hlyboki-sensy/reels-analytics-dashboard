@@ -98,23 +98,26 @@ def fetch_stories(days=90):
         "share_of_reach": round(story_reach / total_reach * 100, 1) if total_reach else 0,
     }
 
-    # Тижневий тренд (один запит на тиждень)
+    # Тренд по «кошиках». Розмір кошика підбираємо так, щоб було ~10-13 точок:
+    # 7 днів → щодня, 30 → ~2 дні, 60 → ~5 днів, 90 → ~тиждень.
+    bucket_days = max(1, days // 12)
     trend = []
     d = since
     while d < today:
-        wk_end = min(d + timedelta(days=7), today)
-        wk = _insights_breakdown(["reach", "total_interactions"], d.isoformat(), wk_end.isoformat())
+        b_end = min(d + timedelta(days=bucket_days), today)
+        wk = _insights_breakdown(["reach", "total_interactions"], d.isoformat(), b_end.isoformat())
         trend.append({
             "week": d.isoformat(),
             "reach": wk.get("reach", {}).get("by", {}).get("STORY", 0),
             "interactions": wk.get("total_interactions", {}).get("by", {}).get("STORY", 0),
         })
-        d = wk_end
+        d = b_end
 
     return {
         "summary": summary,
         "trend": trend,
         "days": days,
+        "bucket_days": bucket_days,
         "updated": datetime.utcnow().isoformat(),
     }
 
@@ -276,21 +279,36 @@ def api_followers():
 
 @app.route("/api/stories")
 def api_stories():
-    """Аналітика сторіз за 90 днів. Кеш у stories_data.json (TTL 6 год), ?refresh=1 — оновити."""
+    """Аналітика сторіз за обраний період (?days=7|30|60|90, типово 90).
+    Кеш у stories_data.json окремо для кожного періоду (TTL 6 год), ?refresh=1 — оновити."""
     force = request.args.get("refresh") == "1"
     try:
-        if not force and os.path.exists(STORIES_FILE):
+        days = int(request.args.get("days", "90"))
+    except ValueError:
+        days = 90
+    if days not in (7, 30, 60, 90):
+        days = 90
+    key = str(days)
+    try:
+        cache = {}
+        if os.path.exists(STORIES_FILE):
             with open(STORIES_FILE, encoding="utf-8") as f:
-                cached = json.load(f)
+                cache = json.load(f)
+            # Сумісність зі старим форматом (плоский об'єкт без розбивки по днях)
+            if not isinstance(cache, dict) or "summary" in cache:
+                cache = {}
+        entry = cache.get(key) if isinstance(cache, dict) else None
+        if not force and entry:
             try:
-                age = (datetime.utcnow() - datetime.fromisoformat(cached.get("updated", ""))).total_seconds()
+                age = (datetime.utcnow() - datetime.fromisoformat(entry.get("updated", ""))).total_seconds()
             except Exception:
                 age = 1e9
             if age < 6 * 3600:
-                return jsonify(cached)
-        data = fetch_stories(90)
+                return jsonify(entry)
+        data = fetch_stories(days)
+        cache[key] = data
         with open(STORIES_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            json.dump(cache, f, ensure_ascii=False, indent=2)
         return jsonify(data)
     except Exception as e:
         return jsonify({"error": str(e)})

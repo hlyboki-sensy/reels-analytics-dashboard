@@ -2,7 +2,7 @@
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
-<title>Reels Analytics Dashboard</title>
+<title>Instagram Analytics Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -128,7 +128,7 @@ a.ig { color:#E1306C; text-decoration:none; }
 
 <div class="header">
   <div>
-    <h1>📊 Reels Analytics</h1>
+    <h1>📊 Instagram Analytics</h1>
     <p id="subtitle">завантаження...</p>
   </div>
   <div class="sync-btns">
@@ -212,7 +212,15 @@ a.ig { color:#E1306C; text-decoration:none; }
       Instagram віддає сторіз лише агреговано (охоплення, взаємодії, репости) —
       по кожній окремій старій сторіз даних в API немає.
     </div>
-    <button class="btn btn-primary" id="btnStoriesRefresh" onclick="renderStories(true)">🔄 Оновити сторіз</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="storiesPeriod" onchange="renderStories(true)" style="background:#1a1a1a;color:#ccc;border:1px solid #2a2a2a;border-radius:8px;padding:9px 12px;font-size:13px;cursor:pointer">
+        <option value="7">7 днів</option>
+        <option value="30">30 днів</option>
+        <option value="60">60 днів</option>
+        <option value="90" selected>90 днів</option>
+      </select>
+      <button class="btn btn-primary" id="btnStoriesRefresh" onclick="renderStories(true)">🔄 Оновити сторіз</button>
+    </div>
   </div>
   <div class="stats-grid" id="storiesStats"></div>
   <div class="chart-card" style="margin-top:16px">
@@ -464,29 +472,33 @@ async function renderFollowers() {
   });
 }
 
-let storiesData = null;
+let storiesCache = {};
 async function renderStories(force) {
+  const sel = document.getElementById('storiesPeriod');
+  const days = sel ? sel.value : '90';
   const stats = document.getElementById('storiesStats');
   const btn = document.getElementById('btnStoriesRefresh');
-  if (!storiesData || force) {
+  let d = storiesCache[days];
+  if (!d || force) {
     if (stats) stats.innerHTML = '<div class="no-data">Завантажую аналітику сторіз…</div>';
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Збираю…'; }
     try {
-      const r = await fetch('/api/stories' + (force ? '?refresh=1' : ''));
-      storiesData = await r.json();
-    } catch (e) { storiesData = { error: String(e) }; }
+      const r = await fetch('/api/stories?days=' + days + (force ? '&refresh=1' : ''));
+      d = await r.json();
+      storiesCache[days] = d;
+    } catch (e) { d = { error: String(e) }; }
     if (btn) { btn.disabled = false; btn.textContent = '🔄 Оновити сторіз'; }
   }
-  const d = storiesData || {};
   if (d.error || !d.summary) {
     if (stats) stats.innerHTML = `<div class="no-data">Не вдалося завантажити сторіз${d.error ? ': ' + d.error : ''}</div>`;
     return;
   }
   const s = d.summary;
+  const lbl = `сторіз, ${days} днів`;
   stats.innerHTML = [
-    ['👥 Охоплення', (s.reach||0).toLocaleString(), 'сторіз, 90 днів'],
-    ['💬 Взаємодії', (s.interactions||0).toLocaleString(), 'сторіз, 90 днів'],
-    ['📤 Репости', (s.shares||0).toLocaleString(), 'сторіз, 90 днів'],
+    ['👥 Охоплення', (s.reach||0).toLocaleString(), lbl],
+    ['💬 Взаємодії', (s.interactions||0).toLocaleString(), lbl],
+    ['📤 Репости', (s.shares||0).toLocaleString(), lbl],
     ['📊 Частка охоплення', (s.share_of_reach||0)+'%', 'сторіз від усього контенту'],
   ].map(([l,v,sub])=>`<div class="stat-card"><div class="lbl">${l}</div><div class="val">${v}</div><div class="sub">${sub}</div></div>`).join('');
 
