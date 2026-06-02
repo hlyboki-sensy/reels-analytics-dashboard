@@ -9,6 +9,11 @@ stories_data.json
 # Завантажені відео / транскрипти
 audio/
 
+# Логи й офлайн-експорти
+*.log
+dashboard-*.html
+export/
+
 # Python
 __pycache__/
 *.py[cod]
