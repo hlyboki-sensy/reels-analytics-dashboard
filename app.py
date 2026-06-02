@@ -25,6 +25,7 @@ ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY", "YOUR_ANTHROPIC_KEY_HERE")
 BASE = "https://graph.instagram.com/v25.0"
 DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = f"{DIR}/reels_data.json"
+POSTS_FILE = f"{DIR}/posts_data.json"
 STORIES_FILE = f"{DIR}/stories_data.json"
 AUDIO_DIR = f"{DIR}/audio"
 os.makedirs(AUDIO_DIR, exist_ok=True)
@@ -76,15 +77,14 @@ def _insights_breakdown(metrics, since, until):
         out[item["name"]] = {"total": tv.get("value", 0), "by": by}
     return out
 
-def fetch_stories(days=90):
-    """Збирає аналітику сторіз за останні N днів: агрегат + тижневий тренд.
-    Дані беруться з акаунт-аналітики (media_product_type=STORY) — це працює
-    і для минулих періодів (на відміну від /me/stories, що дає лише активні)."""
+def fetch_stories(since, until):
+    """Збирає аналітику сторіз за довільний діапазон дат [since, until]: агрегат + тренд.
+    since/until — об'єкти date. Дані з акаунт-аналітики (media_product_type=STORY) —
+    працює і для минулих періодів (на відміну від /me/stories, що дає лише активні)."""
     from datetime import timedelta
-    today = datetime.utcnow().date()
-    since = today - timedelta(days=days)
+    span = max(1, (until - since).days)
     metrics = ["reach", "total_interactions", "shares"]
-    summ = _insights_breakdown(metrics, since.isoformat(), today.isoformat())
+    summ = _insights_breakdown(metrics, since.isoformat(), until.isoformat())
 
     def sv(m):
         return summ.get(m, {}).get("by", {}).get("STORY", 0)
@@ -98,13 +98,12 @@ def fetch_stories(days=90):
         "share_of_reach": round(story_reach / total_reach * 100, 1) if total_reach else 0,
     }
 
-    # Тренд по «кошиках». Розмір кошика підбираємо так, щоб було ~10-13 точок:
-    # 7 днів → щодня, 30 → ~2 дні, 60 → ~5 днів, 90 → ~тиждень.
-    bucket_days = max(1, days // 12)
+    # Тренд по «кошиках». Розмір кошика підбираємо так, щоб було ~10-13 точок.
+    bucket_days = max(1, span // 12)
     trend = []
     d = since
-    while d < today:
-        b_end = min(d + timedelta(days=bucket_days), today)
+    while d < until:
+        b_end = min(d + timedelta(days=bucket_days), until)
         wk = _insights_breakdown(["reach", "total_interactions"], d.isoformat(), b_end.isoformat())
         trend.append({
             "week": d.isoformat(),
@@ -116,7 +115,9 @@ def fetch_stories(days=90):
     return {
         "summary": summary,
         "trend": trend,
-        "days": days,
+        "days": span,
+        "since": since.isoformat(),
+        "until": until.isoformat(),
         "bucket_days": bucket_days,
         "updated": datetime.utcnow().isoformat(),
     }
@@ -170,6 +171,67 @@ def download_and_transcribe(media_url, media_id):
                 os.remove(video_path)
             except OSError:
                 pass
+
+def load_posts():
+    if os.path.exists(POSTS_FILE):
+        with open(POSTS_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+def fetch_post_insights(media_id):
+    """Інсайти допису (фото/каруселі стрічки)."""
+    r = requests.get(f"{BASE}/{media_id}/insights", params={
+        "metric": "reach,saved,shares,total_interactions,views,profile_visits,follows",
+        "access_token": TOKEN,
+    }).json()
+    result = {}
+    for item in r.get("data", []):
+        try:
+            result[item["name"]] = item["values"][0]["value"]
+        except Exception:
+            pass
+    return result
+
+def sync_posts():
+    """Синхронізує дописи стрічки (IMAGE + CAROUSEL_ALBUM) з інсайтами."""
+    global status
+    status["running"] = True
+    status["message"] = "Завантажую список дописів..."
+    try:
+        url = f"{BASE}/me/media"
+        params = {"fields": "id,caption,media_type,timestamp,like_count,comments_count,media_url,permalink,thumbnail_url", "limit": 100, "access_token": TOKEN}
+        all_media = []
+        while url:
+            r = requests.get(url, params=params if not all_media else {}).json()
+            all_media.extend(r.get("data", []))
+            url = r.get("paging", {}).get("next")
+            params = {}
+
+        posts = [m for m in all_media if m.get("media_type") in ("IMAGE", "CAROUSEL_ALBUM")]
+        status["total"] = len(posts)
+        existing = {p["id"]: p for p in load_posts()}
+        enriched = []
+        for i, post in enumerate(posts):
+            mid = post["id"]
+            status["progress"] = i + 1
+            status["message"] = f"[{i+1}/{len(posts)}] Допис {post.get('timestamp','')[:10]}"
+            if mid in existing and existing[mid].get("insights"):
+                # оновлюємо лайки/коменти (вони змінюються), решту лишаємо
+                existing[mid]["like_count"] = post.get("like_count", existing[mid].get("like_count", 0))
+                existing[mid]["comments_count"] = post.get("comments_count", existing[mid].get("comments_count", 0))
+                enriched.append(existing[mid])
+                continue
+            post["insights"] = fetch_post_insights(mid)
+            enriched.append(post)
+            time.sleep(0.3)
+
+        with open(POSTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(enriched, f, ensure_ascii=False, indent=2)
+        status["message"] = f"✅ Готово! Оновлено дописів: {len(enriched)}"
+    except Exception as e:
+        status["message"] = f"❌ Помилка: {e}"
+    finally:
+        status["running"] = False
 
 def sync_reels(with_whisper=False):
     global status
@@ -237,6 +299,26 @@ def api_sync():
     threading.Thread(target=sync_reels, args=(whisper,), daemon=True).start()
     return jsonify({"ok": True})
 
+@app.route("/api/meta")
+def api_meta():
+    """Підпис автора у футері (конфігурується через CREDIT_HANDLE у .env)."""
+    handle = os.environ.get("CREDIT_HANDLE", "hlyboki_sensy").lstrip("@").strip()
+    return jsonify({
+        "handle": handle,
+        "url": f"https://instagram.com/{handle}" if handle else "",
+    })
+
+@app.route("/api/posts")
+def api_posts():
+    return jsonify(load_posts())
+
+@app.route("/api/sync_posts")
+def api_sync_posts():
+    if status["running"]:
+        return jsonify({"error": "Вже запущено"})
+    threading.Thread(target=sync_posts, daemon=True).start()
+    return jsonify({"ok": True})
+
 @app.route("/api/status")
 def api_status():
     return jsonify(status)
@@ -279,16 +361,34 @@ def api_followers():
 
 @app.route("/api/stories")
 def api_stories():
-    """Аналітика сторіз за обраний період (?days=7|30|60|90, типово 90).
-    Кеш у stories_data.json окремо для кожного періоду (TTL 6 год), ?refresh=1 — оновити."""
+    """Аналітика сторіз за діапазон дат (?since=YYYY-MM-DD&until=YYYY-MM-DD)
+    або за пресет (?days=7|30|60|90, типово 90). Кеш у stories_data.json
+    окремо для кожного діапазону (TTL 6 год), ?refresh=1 — оновити."""
+    from datetime import timedelta, date as _date
     force = request.args.get("refresh") == "1"
+    today = datetime.utcnow().date()
+    since_s = request.args.get("since")
+    until_s = request.args.get("until")
     try:
-        days = int(request.args.get("days", "90"))
+        if since_s and until_s:
+            since = _date.fromisoformat(since_s)
+            until = _date.fromisoformat(until_s)
+        else:
+            try:
+                days = int(request.args.get("days", "90"))
+            except ValueError:
+                days = 90
+            until = today
+            since = today - timedelta(days=days)
+        # Захист: коректний порядок і не в майбутньому
+        if until > today:
+            until = today
+        if since >= until:
+            since = until - timedelta(days=1)
     except ValueError:
-        days = 90
-    if days not in (7, 30, 60, 90):
-        days = 90
-    key = str(days)
+        until = today
+        since = today - timedelta(days=90)
+    key = f"{since.isoformat()}_{until.isoformat()}"
     try:
         cache = {}
         if os.path.exists(STORIES_FILE):
@@ -305,7 +405,7 @@ def api_stories():
                 age = 1e9
             if age < 6 * 3600:
                 return jsonify(entry)
-        data = fetch_stories(days)
+        data = fetch_stories(since, until)
         cache[key] = data
         with open(STORIES_FILE, "w", encoding="utf-8") as f:
             json.dump(cache, f, ensure_ascii=False, indent=2)
@@ -602,8 +702,11 @@ def api_roast_carousel():
 if __name__ == "__main__":
     # Перший запуск — завантажуємо дані, якщо їх немає
     if not os.path.exists(DATA_FILE):
-        print("📥 Перший запуск — завантажую дані...")
+        print("📥 Перший запуск — завантажую рілси...")
         sync_reels(False)
+    if not os.path.exists(POSTS_FILE):
+        print("📥 Перший запуск — завантажую дописи...")
+        sync_posts()
     port = int(os.environ.get("PORT", "8080"))
     print(f"🚀 Дашборд: http://localhost:{port}")
     app.run(port=port, debug=False)

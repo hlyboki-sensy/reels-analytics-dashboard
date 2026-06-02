@@ -5,123 +5,138 @@
 <title>Instagram Analytics Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
+:root {
+  --bg:#0c0c0e; --surface:#16171b; --surface-2:#1c1e23; --surface-3:#101114;
+  --border:#262830; --border-soft:#1c1d22;
+  --text:#f4f4f6; --muted:#8b8e98; --faint:#5b5e68; --dim:#3a3c44;
+  --accent:#FFD20E; --accent-2:#FFB200; --accent-soft:rgba(255,210,14,0.12); --accent-ink:#1a1500;
+  --cool:#4DA3FF; --cool-soft:rgba(77,163,255,0.12);
+  --ok:#4caf50; --warn:#ffc107; --bad:#f05a5a;
+  --radius:14px; --radius-sm:9px;
+}
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#0f0f0f; color:#fff; }
-.header { background: linear-gradient(135deg,#405DE6,#5851DB,#833AB4,#C13584,#E1306C,#FD1D1D); padding:20px 32px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
-.header h1 { font-size:22px; font-weight:700; }
-.header p { opacity:.8; font-size:12px; margin-top:3px; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif; background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; }
+
+.header { background:linear-gradient(180deg,#17181d,#121317); border-bottom:1px solid var(--border); box-shadow:0 1px 0 rgba(255,210,14,0.25); padding:22px 32px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; position:relative; }
+.header::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:linear-gradient(180deg,var(--accent),var(--accent-2)); }
+.header h1 { font-size:22px; font-weight:800; letter-spacing:-.4px; }
+.header p { color:var(--muted); font-size:12px; margin-top:3px; }
 .sync-btns { display:flex; gap:8px; }
-.btn { padding:8px 16px; border-radius:8px; border:none; font-size:12px; font-weight:600; cursor:pointer; transition:.2s; }
-.btn-primary { background:#fff; color:#833AB4; }
-.btn-primary:hover { background:#f0f0f0; }
-.btn-ghost { background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.3); }
-.btn-ghost:hover { background:rgba(255,255,255,0.25); }
-.btn:disabled { opacity:.5; cursor:not-allowed; }
-.status-bar { background:#161616; padding:6px 32px; font-size:11px; color:#666; display:flex; align-items:center; gap:8px; min-height:28px; border-bottom:1px solid #222; }
-.spinner { width:10px; height:10px; border:2px solid #333; border-top-color:#E1306C; border-radius:50%; animation:spin .8s linear infinite; flex-shrink:0; }
+.btn { padding:9px 17px; border-radius:var(--radius-sm); border:none; font-size:12px; font-weight:700; cursor:pointer; transition:.18s; }
+.btn-primary { background:var(--accent); color:var(--accent-ink); }
+.btn-primary:hover { background:#ffdd45; transform:translateY(-1px); }
+.btn-ghost { background:transparent; color:var(--text); border:1px solid var(--border); }
+.btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+.btn:disabled { opacity:.45; cursor:not-allowed; transform:none; }
+.status-bar { background:var(--surface-3); padding:7px 32px; font-size:11px; color:var(--muted); display:flex; align-items:center; gap:8px; min-height:30px; border-bottom:1px solid var(--border-soft); }
+.spinner { width:10px; height:10px; border:2px solid #2b2d35; border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; flex-shrink:0; }
 @keyframes spin { to { transform:rotate(360deg); } }
-.progress-bar { height:2px; background:#E1306C; transition:width .3s; }
+.progress-bar { height:2px; background:linear-gradient(90deg,var(--accent),var(--accent-2)); transition:width .3s; }
 
 /* TABS */
-.tabs { display:flex; gap:0; border-bottom:1px solid #222; background:#111; padding:0 24px; }
-.tab { padding:12px 20px; font-size:13px; font-weight:500; color:#555; cursor:pointer; border-bottom:2px solid transparent; transition:.2s; white-space:nowrap; }
-.tab:hover { color:#aaa; }
-.tab.active { color:#fff; border-bottom-color:#E1306C; }
+.tabs { display:flex; gap:2px; border-bottom:1px solid var(--border); background:#101115; padding:0 24px; }
+.tab { padding:13px 20px; font-size:13px; font-weight:600; color:var(--faint); cursor:pointer; border-bottom:2px solid transparent; transition:.18s; white-space:nowrap; }
+.tab:hover { color:var(--muted); }
+.tab.active { color:var(--text); border-bottom-color:var(--accent); }
 .tab-content { display:none; }
-.tab-content.active { display:block; }
+.tab-content.active { display:block; animation:fade .25s ease; }
+@keyframes fade { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
 
-.container { max-width:1500px; margin:0 auto; padding:20px; }
+.container { max-width:1500px; margin:0 auto; padding:22px; }
 
 /* STATS */
-.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
-.stat-card { background:#1a1a1a; border-radius:10px; padding:16px; border:1px solid #242424; }
-.stat-card .lbl { font-size:10px; color:#555; text-transform:uppercase; letter-spacing:.8px; }
-.stat-card .val { font-size:24px; font-weight:700; margin-top:5px; background:linear-gradient(135deg,#833AB4,#E1306C); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-.stat-card .sub { font-size:10px; color:#444; margin-top:2px; }
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:12px; margin-bottom:20px; }
+.stat-card { background:var(--surface); border-radius:var(--radius); padding:17px 18px; border:1px solid var(--border); transition:.18s; }
+.stat-card:hover { border-color:#33353f; }
+.stat-card .lbl { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.9px; font-weight:600; }
+.stat-card .val { font-size:25px; font-weight:800; margin-top:6px; letter-spacing:-.5px; background:linear-gradient(135deg,#FFE25A,#FFB200); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.stat-card .sub { font-size:10px; color:var(--faint); margin-top:3px; }
 
 /* CHARTS */
 .charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
-.chart-card { background:#1a1a1a; border-radius:10px; padding:18px; border:1px solid #242424; }
-.chart-card h3 { font-size:11px; color:#555; text-transform:uppercase; letter-spacing:.8px; margin-bottom:12px; }
+.chart-card { background:var(--surface); border-radius:var(--radius); padding:18px; border:1px solid var(--border); }
+.chart-card h3 { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.9px; margin-bottom:12px; font-weight:600; }
 
 /* TABLE */
-.table-card { background:#1a1a1a; border-radius:10px; padding:18px; border:1px solid #242424; }
-.table-card h3 { font-size:11px; color:#555; text-transform:uppercase; letter-spacing:.8px; margin-bottom:12px; }
+.table-card { background:var(--surface); border-radius:var(--radius); padding:18px; border:1px solid var(--border); }
+.table-card h3 { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.9px; margin-bottom:12px; font-weight:600; }
 .filter-bar { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
-.filter-bar input { background:#111; border:1px solid #2a2a2a; color:#fff; padding:7px 12px; border-radius:7px; font-size:12px; flex:1; min-width:180px; }
-.filter-bar select { background:#111; border:1px solid #2a2a2a; color:#fff; padding:7px 12px; border-radius:7px; font-size:12px; cursor:pointer; }
+.filter-bar input { background:var(--surface-3); border:1px solid var(--border); color:var(--text); padding:8px 13px; border-radius:var(--radius-sm); font-size:12px; flex:1; min-width:180px; }
+.filter-bar input:focus { outline:none; border-color:var(--accent); }
+.filter-bar select { background:var(--surface-3); border:1px solid var(--border); color:var(--text); padding:8px 13px; border-radius:var(--radius-sm); font-size:12px; cursor:pointer; }
 table { width:100%; border-collapse:collapse; font-size:12px; }
-th { text-align:left; padding:8px 10px; color:#444; font-weight:500; border-bottom:1px solid #1e1e1e; white-space:nowrap; }
-td { padding:8px 10px; border-bottom:1px solid #161616; vertical-align:middle; }
-tr:hover td { background:#1c1c1c; }
-.badge { display:inline-block; padding:2px 7px; border-radius:20px; font-size:10px; font-weight:600; }
-.hi { background:#0d2e0d; color:#4caf50; }
-.md { background:#2e2a0d; color:#ffc107; }
-.lo { background:#2e0d0d; color:#f44336; }
-.caption-cell { max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#bbb; }
-.transcript-cell { max-width:240px; font-size:11px; color:#555; font-style:italic; cursor:help; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+th { text-align:left; padding:9px 10px; color:var(--faint); font-weight:600; border-bottom:1px solid var(--border); white-space:nowrap; text-transform:uppercase; letter-spacing:.3px; font-size:10px; }
+td { padding:9px 10px; border-bottom:1px solid var(--border-soft); vertical-align:middle; }
+tr:hover td { background:rgba(255,210,14,0.04); }
+.badge { display:inline-block; padding:2px 8px; border-radius:20px; font-size:10px; font-weight:700; }
+.hi { background:rgba(76,175,80,.14); color:#5fd463; }
+.md { background:rgba(255,193,7,.14); color:var(--warn); }
+.lo { background:rgba(240,90,90,.14); color:var(--bad); }
+.caption-cell { max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#c2c4cc; }
+.transcript-cell { max-width:240px; font-size:11px; color:var(--faint); font-style:italic; cursor:help; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .bar-wrap { display:flex; align-items:center; gap:6px; }
-.mini-bar { flex:1; max-width:50px; height:3px; background:#1e1e1e; border-radius:2px; }
-.mini-bar-fill { height:100%; border-radius:2px; background:linear-gradient(90deg,#833AB4,#E1306C); }
-a.ig { color:#E1306C; text-decoration:none; }
+.mini-bar { flex:1; max-width:50px; height:3px; background:var(--surface-2); border-radius:2px; }
+.mini-bar-fill { height:100%; border-radius:2px; background:linear-gradient(90deg,var(--accent-2),var(--accent)); }
+a.ig { color:var(--accent); text-decoration:none; font-weight:700; }
+a.ig:hover { color:#ffdd45; }
 
 /* PATTERNS */
 .patterns-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
-.insight-card { background:#1a1a1a; border-radius:10px; padding:18px; border:1px solid #242424; }
-.insight-card h3 { font-size:11px; color:#555; text-transform:uppercase; letter-spacing:.8px; margin-bottom:14px; }
+.insight-card { background:var(--surface); border-radius:var(--radius); padding:18px; border:1px solid var(--border); }
+.insight-card h3 { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.9px; margin-bottom:14px; font-weight:600; }
 .insight-card.full { grid-column:1/-1; }
 .compare-row { display:flex; gap:12px; margin-bottom:10px; }
-.compare-box { flex:1; background:#111; border-radius:8px; padding:12px; }
-.compare-box .label { font-size:10px; color:#555; margin-bottom:6px; }
-.compare-box .big { font-size:22px; font-weight:700; color:#E1306C; }
-.compare-box .small { font-size:11px; color:#555; margin-top:3px; }
+.compare-box { flex:1; background:var(--surface-3); border-radius:var(--radius-sm); padding:13px; border:1px solid var(--border-soft); }
+.compare-box .label { font-size:10px; color:var(--muted); margin-bottom:6px; }
+.compare-box .big { font-size:22px; font-weight:800; color:var(--accent); }
+.compare-box .small { font-size:11px; color:var(--faint); margin-top:3px; }
 .word-list { display:flex; flex-wrap:wrap; gap:6px; }
-.word-chip { background:#1e1e1e; border:1px solid #2a2a2a; border-radius:20px; padding:4px 10px; font-size:12px; color:#ccc; }
-.word-chip.hot { background:#2e1020; border-color:#833AB4; color:#C13584; }
-.word-chip.save { background:#10202e; border-color:#405DE6; color:#5851DB; }
+.word-chip { background:var(--surface-2); border:1px solid var(--border); border-radius:20px; padding:4px 11px; font-size:12px; color:#cbcdd4; }
+.word-chip.hot { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+.word-chip.save { background:var(--cool-soft); border-color:var(--cool); color:var(--cool); }
 .length-bar-wrap { display:flex; flex-direction:column; gap:8px; }
 .length-row { display:flex; align-items:center; gap:10px; }
-.length-label { font-size:11px; color:#666; width:160px; flex-shrink:0; }
-.length-bar-bg { flex:1; height:18px; background:#111; border-radius:4px; overflow:hidden; }
-.length-bar-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,#833AB4,#E1306C); display:flex; align-items:center; padding:0 8px; font-size:10px; font-weight:600; white-space:nowrap; }
-.length-stats { font-size:10px; color:#555; width:120px; flex-shrink:0; }
-.script-item { background:#111; border-radius:8px; padding:12px 14px; margin-bottom:8px; border-left:3px solid #833AB4; }
-.script-item .meta { font-size:10px; color:#555; margin-bottom:5px; }
-.script-item .hook { font-size:13px; color:#ddd; font-weight:500; margin-bottom:4px; }
-.script-item .body { font-size:11px; color:#666; line-height:1.5; }
+.length-label { font-size:11px; color:var(--muted); width:160px; flex-shrink:0; }
+.length-bar-bg { flex:1; height:18px; background:var(--surface-3); border-radius:5px; overflow:hidden; }
+.length-bar-fill { height:100%; border-radius:5px; background:linear-gradient(90deg,var(--accent-2),var(--accent)); display:flex; align-items:center; padding:0 8px; font-size:10px; font-weight:700; color:var(--accent-ink); white-space:nowrap; }
+.length-stats { font-size:10px; color:var(--faint); width:120px; flex-shrink:0; }
+.script-item { background:var(--surface-3); border-radius:var(--radius-sm); padding:12px 14px; margin-bottom:8px; border-left:3px solid var(--accent); }
+.script-item .meta { font-size:10px; color:var(--faint); margin-bottom:5px; }
+.script-item .hook { font-size:13px; color:#e6e7ea; font-weight:600; margin-bottom:4px; }
+.script-item .body { font-size:11px; color:var(--muted); line-height:1.5; }
 .script-item .metrics { display:flex; gap:12px; margin-top:8px; }
-.script-item .m { font-size:10px; color:#555; }
-.script-item .m span { color:#aaa; font-weight:600; }
-.no-data { text-align:center; padding:40px; color:#333; font-size:13px; }
+.script-item .m { font-size:10px; color:var(--faint); }
+.script-item .m span { color:#bcbec6; font-weight:700; }
+.no-data { text-align:center; padding:40px; color:var(--dim); font-size:13px; }
 
 @media(max-width:768px){ .charts-grid,.patterns-grid { grid-template-columns:1fr; } }
 
 /* INSIGHTS */
 .insights-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
-.rec-card { background:#1a1a1a; border-radius:10px; padding:18px; border:1px solid #242424; }
-.rec-card h3 { font-size:11px; color:#555; text-transform:uppercase; letter-spacing:.8px; margin-bottom:14px; }
+.rec-card { background:var(--surface); border-radius:var(--radius); padding:18px; border:1px solid var(--border); }
+.rec-card h3 { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.9px; margin-bottom:14px; font-weight:600; }
 .rec-card.full { grid-column:1/-1; }
-.rec-item { display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-bottom:1px solid #1e1e1e; }
+.rec-item { display:flex; align-items:flex-start; gap:10px; padding:11px 0; border-bottom:1px solid var(--border-soft); }
 .rec-item:last-child { border:none; }
 .rec-icon { font-size:20px; flex-shrink:0; width:32px; text-align:center; }
 .rec-text { flex:1; }
-.rec-title { font-size:13px; color:#ddd; font-weight:600; margin-bottom:3px; }
-.rec-desc { font-size:11px; color:#555; line-height:1.5; }
-.rec-badge { font-size:10px; padding:2px 8px; border-radius:20px; background:#1e3a1e; color:#4caf50; display:inline-block; margin-top:4px; }
+.rec-title { font-size:13px; color:#e6e7ea; font-weight:700; margin-bottom:3px; }
+.rec-desc { font-size:11px; color:var(--muted); line-height:1.5; }
+.rec-badge { font-size:10px; padding:2px 8px; border-radius:20px; background:rgba(76,175,80,.14); color:#5fd463; display:inline-block; margin-top:4px; }
 .day-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-top:8px; }
-.day-cell { background:#111; border-radius:6px; padding:8px 4px; text-align:center; }
-.day-cell .dname { font-size:9px; color:#444; margin-bottom:4px; }
-.day-cell .dval { font-size:13px; font-weight:700; }
-.day-cell .dcount { font-size:9px; color:#333; margin-top:2px; }
+.day-cell { background:var(--surface-3); border-radius:8px; padding:9px 4px; text-align:center; border:1px solid var(--border-soft); }
+.day-cell .dname { font-size:9px; color:var(--faint); margin-bottom:4px; }
+.day-cell .dval { font-size:13px; font-weight:800; }
+.day-cell .dcount { font-size:9px; color:var(--dim); margin-top:2px; }
 .trend-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 .trend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-.top-angle { background:#111; border-radius:8px; padding:10px 14px; margin-bottom:8px; border-left:3px solid #E1306C; }
-.top-angle .angle-title { font-size:13px; color:#ddd; font-weight:600; }
-.top-angle .angle-stats { font-size:11px; color:#555; margin-top:4px; }
+.top-angle { background:var(--surface-3); border-radius:var(--radius-sm); padding:11px 14px; margin-bottom:8px; border-left:3px solid var(--accent); }
+.top-angle .angle-title { font-size:13px; color:#e6e7ea; font-weight:700; }
+.top-angle .angle-stats { font-size:11px; color:var(--faint); margin-top:4px; }
 @media(max-width:768px){ .insights-grid { grid-template-columns:1fr; } }
-.mode-btn { background:#111; border:1px solid #2a2a2a; color:#555; padding:6px 14px; border-radius:20px; font-size:11px; cursor:pointer; transition:.2s; }
-.mode-btn:hover { border-color:#555; color:#aaa; }
-.mode-btn.active { background:#2e0a1a; border-color:#E1306C; color:#E1306C; font-weight:600; }
+.mode-btn { background:var(--surface-3); border:1px solid var(--border); color:var(--muted); padding:7px 15px; border-radius:20px; font-size:11px; cursor:pointer; transition:.18s; }
+.mode-btn:hover { border-color:var(--faint); color:var(--text); }
+.mode-btn.active { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-weight:700; }
 </style>
 </head>
 <body>
@@ -144,7 +159,8 @@ a.ig { color:#E1306C; text-decoration:none; }
 <div class="progress-bar" id="progressBar" style="width:0%"></div>
 
 <div class="tabs">
-  <div class="tab active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 Дашборд</div>
+  <div class="tab active" data-tab="dashboard" onclick="switchTab('dashboard')">🎬 Рілси</div>
+  <div class="tab" data-tab="posts" onclick="switchTab('posts')">🖼 Дописи</div>
   <div class="tab" data-tab="followers" onclick="switchTab('followers')">👥 Підписники</div>
   <div class="tab" data-tab="stories" onclick="switchTab('stories')">📸 Сторіз</div>
   <div class="tab" data-tab="patterns" onclick="switchTab('patterns')">🧠 Патерни мовлення</div>
@@ -182,6 +198,42 @@ a.ig { color:#E1306C; text-decoration:none; }
 </div>
 </div>
 
+<!-- TAB: POSTS -->
+<div id="tab-posts" class="tab-content">
+<div class="container">
+  <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:13px 17px;font-size:12px;color:var(--muted);line-height:1.6;flex:1;min-width:240px">
+      🖼 <strong style="color:var(--text)">Аналітика дописів стрічки</strong> — фото та каруселі (без рілсів). Охоплення, перегляди, збереження, візити профілю й нові підписки з кожного допису.
+    </div>
+    <button class="btn btn-primary" id="btnSyncPosts" onclick="syncPosts()">🔄 Оновити дописи</button>
+  </div>
+  <div class="stats-grid" id="postsStats"></div>
+  <div class="charts-grid">
+    <div class="chart-card"><h3>👥 Охоплення (топ 20)</h3><canvas id="cPostsReach"></canvas></div>
+    <div class="chart-card"><h3>🔥 ER% (топ 20 за ER)</h3><canvas id="cPostsER"></canvas></div>
+    <div class="chart-card"><h3>📅 Охоплення в часі</h3><canvas id="cPostsTimeline"></canvas></div>
+    <div class="chart-card"><h3>🔖 Збереження vs 👤 Візити профілю (топ 30)</h3><canvas id="cPostsSaves"></canvas></div>
+  </div>
+  <div class="table-card">
+    <h3>Усі дописи</h3>
+    <div class="filter-bar">
+      <input id="searchPosts" placeholder="🔍 Пошук за підписом..." oninput="renderPostsTable()">
+      <select id="sortColPosts" onchange="renderPostsTable()">
+        <option value="reach">↓ Охоплення</option>
+        <option value="views">↓ Перегляди</option>
+        <option value="er">↓ ER%</option>
+        <option value="saves">↓ Збереження</option>
+        <option value="likes">↓ Вподобайки</option>
+        <option value="profile_visits">↓ Візити профілю</option>
+        <option value="follows">↓ Нові підписки</option>
+        <option value="date">↓ Дата</option>
+      </select>
+    </div>
+    <div id="tblPosts"><div class="no-data">Натисни «Оновити дописи», щоб завантажити.</div></div>
+  </div>
+</div>
+</div>
+
 <!-- TAB: FOLLOWERS -->
 <div id="tab-followers" class="tab-content">
 <div class="container">
@@ -206,20 +258,24 @@ a.ig { color:#E1306C; text-decoration:none; }
 <!-- TAB: STORIES -->
 <div id="tab-stories" class="tab-content">
 <div class="container">
-  <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-    <div style="background:#1a1a2e;border:1px solid #2a2a4a;border-radius:10px;padding:14px 18px;font-size:12px;color:#8888cc;line-height:1.6;flex:1;min-width:240px">
-      📸 <strong style="color:#aaa">Аналітика сторіз за 90 днів.</strong>
+  <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:13px 17px;font-size:12px;color:var(--muted);line-height:1.6;flex:1;min-width:240px">
+      📸 <strong style="color:var(--text)">Аналітика сторіз за обраний діапазон.</strong>
       Instagram віддає сторіз лише агреговано (охоплення, взаємодії, репости) —
       по кожній окремій старій сторіз даних в API немає.
     </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <select id="storiesPeriod" onchange="renderStories(true)" style="background:#1a1a1a;color:#ccc;border:1px solid #2a2a2a;border-radius:8px;padding:9px 12px;font-size:13px;cursor:pointer">
-        <option value="7">7 днів</option>
-        <option value="30">30 днів</option>
-        <option value="60">60 днів</option>
-        <option value="90" selected>90 днів</option>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+      <select id="storiesPreset" onchange="storiesApplyPreset()" style="background:var(--surface-3);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;cursor:pointer">
+        <option value="7">Останні 7 днів</option>
+        <option value="30">Останні 30 днів</option>
+        <option value="60">Останні 60 днів</option>
+        <option value="90" selected>Останні 90 днів</option>
+        <option value="custom">Свій діапазон</option>
       </select>
-      <button class="btn btn-primary" id="btnStoriesRefresh" onclick="renderStories(true)">🔄 Оновити сторіз</button>
+      <input type="date" id="storiesFrom" onchange="storiesCustom()" style="background:var(--surface-3);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-size:12px;color-scheme:dark">
+      <span style="color:var(--faint)">—</span>
+      <input type="date" id="storiesTo" onchange="storiesCustom()" style="background:var(--surface-3);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-size:12px;color-scheme:dark">
+      <button class="btn btn-primary" id="btnStoriesRefresh" onclick="renderStories(true)">🔄 Оновити</button>
     </div>
   </div>
   <div class="stats-grid" id="storiesStats"></div>
@@ -315,7 +371,7 @@ a.ig { color:#E1306C; text-decoration:none; }
 
       <div id="dropZone" onclick="document.getElementById('slideInput').click()"
         style="border:2px dashed #2a2a2a;border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:.2s;margin-bottom:12px"
-        ondragover="event.preventDefault();this.style.borderColor='#E1306C'"
+        ondragover="event.preventDefault();this.style.borderColor='#FFD20E'"
         ondragleave="this.style.borderColor='#2a2a2a'"
         ondrop="handleDrop(event)">
         <div style="font-size:26px;margin-bottom:6px">📎</div>
@@ -373,6 +429,7 @@ a.ig { color:#E1306C; text-decoration:none; }
 
 <script>
 let reels = [], analysis = {}, charts = {};
+let posts = [], postsLoaded = false;
 
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
@@ -380,6 +437,7 @@ function switchTab(name) {
   document.getElementById('tab-'+name).classList.add('active');
   if (name==='patterns' && analysis.total_reels) renderPatterns();
   if (name==='scripts' && reels.length) renderScripts();
+  if (name==='posts') renderPosts();
   if (name==='followers') renderFollowers();
   if (name==='stories') renderStories();
   if (name==='insights' && reels.length) renderInsights();
@@ -405,7 +463,7 @@ async function renderFollowers() {
   });
 
   // Маркери на графік
-  const pointColors = dates.map(d => reelDates[d] ? '#E1306C' : 'rgba(0,0,0,0)');
+  const pointColors = dates.map(d => reelDates[d] ? '#FFD20E' : 'rgba(0,0,0,0)');
   const pointSizes = dates.map(d => reelDates[d] ? 8 : 0);
 
   if (charts.followers) charts.followers.destroy();
@@ -417,7 +475,7 @@ async function renderFollowers() {
         {
           label: 'Приріст підписників',
           data: values,
-          backgroundColor: dates.map(d => reelDates[d] ? 'rgba(225,48,108,0.8)' : 'rgba(131,58,180,0.4)'),
+          backgroundColor: dates.map(d => reelDates[d] ? 'rgba(255,210,14,0.8)' : 'rgba(120,124,134,0.35)'),
           borderRadius: 3,
         }
       ]
@@ -458,7 +516,7 @@ async function renderFollowers() {
       datasets: [{
         label: 'Рілс (views vs +підписники)',
         data: corrData,
-        backgroundColor: 'rgba(225,48,108,0.6)',
+        backgroundColor: 'rgba(255,210,14,0.6)',
         pointRadius: 6,
       }]
     },
@@ -473,28 +531,48 @@ async function renderFollowers() {
 }
 
 let storiesCache = {};
+function _today() { return new Date().toISOString().slice(0,10); }
+function _daysAgo(n) { const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); }
+function storiesInitDates() {
+  const f=document.getElementById('storiesFrom'), t=document.getElementById('storiesTo');
+  if (f && t && !t.value) { t.value=_today(); t.max=_today(); f.value=_daysAgo(90); f.max=_today(); }
+}
+function storiesApplyPreset() {
+  const p=document.getElementById('storiesPreset').value;
+  if (p==='custom') return;
+  document.getElementById('storiesTo').value=_today();
+  document.getElementById('storiesFrom').value=_daysAgo(parseInt(p));
+  renderStories();
+}
+function storiesCustom() {
+  document.getElementById('storiesPreset').value='custom';
+  renderStories();
+}
+
 async function renderStories(force) {
-  const sel = document.getElementById('storiesPeriod');
-  const days = sel ? sel.value : '90';
+  storiesInitDates();
+  const since = document.getElementById('storiesFrom').value || _daysAgo(90);
+  const until = document.getElementById('storiesTo').value || _today();
+  const key = since+'_'+until;
   const stats = document.getElementById('storiesStats');
   const btn = document.getElementById('btnStoriesRefresh');
-  let d = storiesCache[days];
+  let d = storiesCache[key];
   if (!d || force) {
     if (stats) stats.innerHTML = '<div class="no-data">Завантажую аналітику сторіз…</div>';
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Збираю…'; }
     try {
-      const r = await fetch('/api/stories?days=' + days + (force ? '&refresh=1' : ''));
+      const r = await fetch('/api/stories?since=' + since + '&until=' + until + (force ? '&refresh=1' : ''));
       d = await r.json();
-      storiesCache[days] = d;
+      storiesCache[key] = d;
     } catch (e) { d = { error: String(e) }; }
-    if (btn) { btn.disabled = false; btn.textContent = '🔄 Оновити сторіз'; }
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Оновити'; }
   }
   if (d.error || !d.summary) {
     if (stats) stats.innerHTML = `<div class="no-data">Не вдалося завантажити сторіз${d.error ? ': ' + d.error : ''}</div>`;
     return;
   }
   const s = d.summary;
-  const lbl = `сторіз, ${days} днів`;
+  const lbl = `сторіз, ${since} — ${until}`;
   stats.innerHTML = [
     ['👥 Охоплення', (s.reach||0).toLocaleString(), lbl],
     ['💬 Взаємодії', (s.interactions||0).toLocaleString(), lbl],
@@ -507,12 +585,12 @@ async function renderStories(force) {
   ['stReach','stInter'].forEach(k=>{ if(charts[k]){charts[k].destroy();} });
   charts.stReach = new Chart(document.getElementById('cStoriesReach'), {
     type:'bar',
-    data:{labels,datasets:[{label:'Охоплення сторіз',data:trend.map(t=>t.reach||0),backgroundColor:'rgba(225,48,108,0.7)',borderRadius:4}]},
+    data:{labels,datasets:[{label:'Охоплення сторіз',data:trend.map(t=>t.reach||0),backgroundColor:'rgba(255,210,14,0.7)',borderRadius:4}]},
     options:{plugins:{legend:{labels:{color:'#555',font:{size:10}}}},scales:{x:{ticks:{color:'#444',font:{size:9}},grid:{color:'#1a1a1a'}},y:{ticks:{color:'#444'},grid:{color:'#1a1a1a'}}}}
   });
   charts.stInter = new Chart(document.getElementById('cStoriesInter'), {
     type:'line',
-    data:{labels,datasets:[{label:'Взаємодії зі сторіз',data:trend.map(t=>t.interactions||0),borderColor:'#833AB4',backgroundColor:'rgba(131,58,180,0.1)',fill:true,tension:.4,pointRadius:2}]},
+    data:{labels,datasets:[{label:'Взаємодії зі сторіз',data:trend.map(t=>t.interactions||0),borderColor:'#4DA3FF',backgroundColor:'rgba(77,163,255,0.12)',fill:true,tension:.4,pointRadius:2}]},
     options:{plugins:{legend:{labels:{color:'#555',font:{size:10}}}},scales:{x:{ticks:{color:'#444',font:{size:9}},grid:{color:'#1a1a1a'}},y:{ticks:{color:'#444'},grid:{color:'#1a1a1a'}}}}
   });
   const upd = document.getElementById('storiesUpdated');
@@ -545,6 +623,87 @@ async function renderCollectedStories() {
       </tr>`;
     }).join('')}</tbody></table>
     <div style="margin-top:8px;font-size:11px;color:#555">Усього зібрано сторіз: ${list.length}</div>`;
+}
+
+// ─────────── ДОПИСИ ───────────
+async function renderPosts(force) {
+  const statsBox = document.getElementById('postsStats');
+  if (!postsLoaded || force) {
+    let raw = [];
+    try { raw = await (await fetch('/api/posts')).json(); } catch(e) { raw = []; }
+    if (!Array.isArray(raw) || !raw.length) {
+      statsBox.innerHTML = '<div class="no-data">Дописів ще немає — натисни «Оновити дописи».</div>';
+      document.getElementById('tblPosts').innerHTML = '<div class="no-data">Натисни «Оновити дописи», щоб завантажити.</div>';
+      return;
+    }
+    posts = raw.map(p => {
+      const i = p.insights||{};
+      const reach = i.reach||0;
+      return {...p, reach, views:i.views||0, saves:i.saved||0, shares:i.shares||0,
+        interactions:i.total_interactions||0, profile_visits:i.profile_visits||0, follows:i.follows||0,
+        likes:p.like_count||0, comments:p.comments_count||0,
+        er: reach>0 ? Math.round((i.total_interactions||0)/reach*1000)/10 : 0,
+        save_rate: reach>0 ? Math.round((i.saved||0)/reach*1000)/10 : 0,
+        date:(p.timestamp||'').slice(0,10)};
+    });
+    posts.sort((a,b)=>b.reach-a.reach);
+    postsLoaded = true;
+  }
+  updatePostsUI();
+}
+
+function updatePostsUI() {
+  if(!posts.length) return;
+  const sum=(k)=>posts.reduce((s,p)=>s+(p[k]||0),0);
+  const aer=(posts.reduce((s,p)=>s+p.er,0)/posts.length).toFixed(1);
+  document.getElementById('postsStats').innerHTML = [
+    ['Дописів',posts.length,''],['👥 Охоплення',sum('reach').toLocaleString(),'сумарно'],
+    ['👁 Перегляди',sum('views').toLocaleString(),'сумарно'],['❤️ Вподобайки',sum('likes').toLocaleString(),'сумарно'],
+    ['Avg ER%',aer+'%','до охоплення'],['🔖 Збереження',sum('saves').toLocaleString(),'сумарно'],
+    ['👤 Візити профілю',sum('profile_visits').toLocaleString(),'з дописів'],['➕ Нові підписки',sum('follows').toLocaleString(),'з дописів'],
+  ].map(([l,v,s])=>`<div class="stat-card"><div class="lbl">${l}</div><div class="val">${v}</div>${s?`<div class="sub">${s}</div>`:''}</div>`).join('');
+  buildPostsCharts(); renderPostsTable();
+}
+
+function buildPostsCharts() {
+  const opt = {plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#666',font:{size:9}},grid:{color:'#1a1a1a'}},y:{ticks:{color:'#666'},grid:{color:'#1a1a1a'}}}};
+  const optL = {plugins:{legend:{labels:{color:'#888',font:{size:10}}}},scales:opt.scales};
+  const top20=posts.slice(0,20), topER=[...posts].sort((a,b)=>b.er-a.er).slice(0,20);
+  const tl=[...posts].sort((a,b)=>a.date.localeCompare(b.date)), top30=posts.slice(0,30);
+  ['pr','pe','pt','ps'].forEach(k=>{ if(charts[k]){charts[k].destroy();} });
+  charts.pr=new Chart(document.getElementById('cPostsReach'),{type:'bar',data:{labels:top20.map((_,i)=>`#${i+1}`),datasets:[{data:top20.map(p=>p.reach),backgroundColor:'rgba(255,210,14,0.85)',borderRadius:4}]},options:opt});
+  charts.pe=new Chart(document.getElementById('cPostsER'),{type:'bar',data:{labels:topER.map(p=>p.date.slice(5)),datasets:[{data:topER.map(p=>p.er),backgroundColor:'rgba(255,159,28,0.85)',borderRadius:4}]},options:opt});
+  charts.pt=new Chart(document.getElementById('cPostsTimeline'),{type:'line',data:{labels:tl.map(p=>p.date.slice(5)),datasets:[{label:'Охоплення',data:tl.map(p=>p.reach),borderColor:'#FFD20E',backgroundColor:'rgba(255,210,14,0.10)',fill:true,tension:.4,pointRadius:2}]},options:optL});
+  charts.ps=new Chart(document.getElementById('cPostsSaves'),{type:'bar',data:{labels:top30.map(p=>p.date.slice(5)),datasets:[{label:'Збереження',data:top30.map(p=>p.saves),backgroundColor:'rgba(77,163,255,0.8)',borderRadius:3},{label:'Візити профілю',data:top30.map(p=>p.profile_visits),backgroundColor:'rgba(255,210,14,0.8)',borderRadius:3}]},options:optL});
+}
+
+function renderPostsTable() {
+  if(!posts.length) return;
+  const q=document.getElementById('searchPosts').value.toLowerCase(), col=document.getElementById('sortColPosts').value;
+  const maxR=Math.max(...posts.map(p=>p.reach))||1;
+  let data=posts.filter(p=>!q||(p.caption||'').toLowerCase().includes(q));
+  data.sort((a,b)=>col==='date'?b.date.localeCompare(a.date):b[col]-a[col]);
+  if(!data.length){document.getElementById('tblPosts').innerHTML='<div class="no-data">Нічого не знайдено</div>';return;}
+  const badge=er=>er>=5?`<span class="badge hi">${er}%</span>`:er>=2?`<span class="badge md">${er}%</span>`:`<span class="badge lo">${er}%</span>`;
+  const tp=t=>t==='CAROUSEL_ALBUM'?'🖼 Карусель':'📷 Фото';
+  document.getElementById('tblPosts').innerHTML=`<table><thead><tr><th>#</th><th>Дата</th><th>Тип</th><th>Підпис</th><th>👥 Reach</th><th>👁 Views</th><th>❤️</th><th>🔖</th><th>👤 Візити</th><th>➕</th><th>ER%</th><th></th></tr></thead><tbody>${data.map((p,i)=>`<tr><td style="color:#555">${i+1}</td><td style="color:#888;white-space:nowrap">${p.date}</td><td style="color:#888;white-space:nowrap">${tp(p.media_type)}</td><td class="caption-cell" title="${(p.caption||'').replace(/"/g,'')}">${p.caption?p.caption.slice(0,50)+(p.caption.length>50?'…':''):'<span style="color:#3a3c44">—</span>'}</td><td><div class="bar-wrap"><strong>${p.reach.toLocaleString()}</strong><div class="mini-bar"><div class="mini-bar-fill" style="width:${Math.round(p.reach/maxR*100)}%"></div></div></div></td><td>${p.views.toLocaleString()}</td><td>${p.likes}</td><td>${p.saves}</td><td>${p.profile_visits}</td><td>${p.follows}</td><td>${badge(p.er)}</td><td><a class="ig" href="${p.permalink}" target="_blank">↗</a></td></tr>`).join('')}</tbody></table>`;
+}
+
+async function syncPosts() {
+  const b=document.getElementById('btnSyncPosts');
+  if(b.disabled) return; b.disabled=true; b.textContent='⏳ Збираю…';
+  await fetch('/api/sync_posts');
+  const iv=setInterval(async()=>{
+    const s=await(await fetch('/api/status')).json();
+    document.getElementById('statusSpinner').style.display=s.running?'':'none';
+    document.getElementById('statusMsg').textContent=s.message;
+    if(s.total>0) document.getElementById('progressBar').style.width=Math.round(s.progress/s.total*100)+'%';
+    if(!s.running){ clearInterval(iv); b.disabled=false; b.textContent='🔄 Оновити дописи';
+      document.getElementById('progressBar').style.width='100%';
+      setTimeout(()=>document.getElementById('progressBar').style.width='0%',2000);
+      await renderPosts(true);
+    }
+  },1000);
 }
 
 async function loadData() {
@@ -592,10 +751,10 @@ function buildCharts() {
 
   ['v','e','t','s'].forEach(k=>{ if(charts[k]){charts[k].destroy();} });
 
-  charts.v=new Chart(document.getElementById('cViews'),co({type:'bar',data:{labels:top20.map((_,i)=>`#${i+1}`),datasets:[{data:top20.map(r=>r.views),backgroundColor:'rgba(225,48,108,0.7)',borderRadius:4}]},options:{}}));
-  charts.e=new Chart(document.getElementById('cER'),co({type:'bar',data:{labels:topER.map(r=>r.date.slice(5)),datasets:[{data:topER.map(r=>r.er),backgroundColor:'rgba(131,58,180,0.7)',borderRadius:4}]},options:{}}));
-  charts.t=new Chart(document.getElementById('cTimeline'),{type:'line',data:{labels:tl.map(r=>r.date.slice(5)),datasets:[{label:'Перегляди',data:tl.map(r=>r.views),borderColor:'#E1306C',backgroundColor:'rgba(225,48,108,0.08)',fill:true,tension:.4,pointRadius:2}]},options:{plugins:{legend:{labels:{color:'#555',font:{size:10}}}},scales:{x:{ticks:{color:'#444',font:{size:9}},grid:{color:'#1a1a1a'}},y:{ticks:{color:'#444'},grid:{color:'#1a1a1a'}}}}});
-  charts.s=new Chart(document.getElementById('cSaves'),{type:'bar',data:{labels:top30.map(r=>r.date.slice(5)),datasets:[{label:'Saves',data:top30.map(r=>r.saves),backgroundColor:'rgba(64,93,230,0.7)',borderRadius:3},{label:'Shares',data:top30.map(r=>r.shares),backgroundColor:'rgba(225,48,108,0.7)',borderRadius:3}]},options:{plugins:{legend:{labels:{color:'#555',font:{size:10}}}},scales:{x:{ticks:{color:'#444',font:{size:9}},grid:{color:'#1a1a1a'}},y:{ticks:{color:'#444'},grid:{color:'#1a1a1a'}}}}});
+  charts.v=new Chart(document.getElementById('cViews'),co({type:'bar',data:{labels:top20.map((_,i)=>`#${i+1}`),datasets:[{data:top20.map(r=>r.views),backgroundColor:'rgba(255,210,14,0.7)',borderRadius:4}]},options:{}}));
+  charts.e=new Chart(document.getElementById('cER'),co({type:'bar',data:{labels:topER.map(r=>r.date.slice(5)),datasets:[{data:topER.map(r=>r.er),backgroundColor:'rgba(255,159,28,0.85)',borderRadius:4}]},options:{}}));
+  charts.t=new Chart(document.getElementById('cTimeline'),{type:'line',data:{labels:tl.map(r=>r.date.slice(5)),datasets:[{label:'Перегляди',data:tl.map(r=>r.views),borderColor:'#FFD20E',backgroundColor:'rgba(255,210,14,0.08)',fill:true,tension:.4,pointRadius:2}]},options:{plugins:{legend:{labels:{color:'#555',font:{size:10}}}},scales:{x:{ticks:{color:'#444',font:{size:9}},grid:{color:'#1a1a1a'}},y:{ticks:{color:'#444'},grid:{color:'#1a1a1a'}}}}});
+  charts.s=new Chart(document.getElementById('cSaves'),{type:'bar',data:{labels:top30.map(r=>r.date.slice(5)),datasets:[{label:'Saves',data:top30.map(r=>r.saves),backgroundColor:'rgba(77,163,255,0.7)',borderRadius:3},{label:'Shares',data:top30.map(r=>r.shares),backgroundColor:'rgba(255,210,14,0.7)',borderRadius:3}]},options:{plugins:{legend:{labels:{color:'#555',font:{size:10}}}},scales:{x:{ticks:{color:'#444',font:{size:9}},grid:{color:'#1a1a1a'}},y:{ticks:{color:'#444'},grid:{color:'#1a1a1a'}}}}});
 }
 
 function renderTable() {
@@ -770,7 +929,7 @@ function renderInsights() {
   const bestDay = dayAvg.indexOf(Math.max(...dayAvg));
   const dayHTML = days.map((d,i) => {
     const pct = Math.round(dayAvg[i]/maxDayAvg*100);
-    const color = i===bestDay ? '#E1306C' : (pct>60?'#833AB4':'#333');
+    const color = i===bestDay ? '#FFD20E' : (pct>60?'#4DA3FF':'#333');
     return `<div class="day-cell"><div class="dname">${d}</div><div class="dval" style="color:${color}">${dayAvg[i]?dayAvg[i].toLocaleString():'-'}</div><div class="dcount">${dayData[i].count} рілс</div></div>`;
   }).join('');
 
@@ -821,7 +980,7 @@ function renderInsights() {
     const delta = m.views-prev;
     const arrow = delta>0?'↑':delta<0?'↓':'→';
     const acol = delta>0?'#4caf50':delta<0?'#f44336':'#666';
-    return `<div class="trend-row"><div class="trend-dot" style="background:${delta>0?'#4caf50':delta<0?'#f44336':'#555'}"></div><div style="flex:1"><div style="display:flex;justify-content:space-between;font-size:12px;color:#ccc;margin-bottom:3px"><span>${m.m}</span><span>${m.views.toLocaleString()} avg <span style="color:${acol};font-size:10px">${arrow}${Math.abs(delta).toLocaleString()}</span></span></div><div style="height:4px;background:#111;border-radius:2px"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#833AB4,#E1306C);border-radius:2px"></div></div></div><div style="font-size:10px;color:#444;margin-left:6px;width:40px">ER ${m.er}%</div></div>`;
+    return `<div class="trend-row"><div class="trend-dot" style="background:${delta>0?'#4caf50':delta<0?'#f44336':'#555'}"></div><div style="flex:1"><div style="display:flex;justify-content:space-between;font-size:12px;color:#ccc;margin-bottom:3px"><span>${m.m}</span><span>${m.views.toLocaleString()} avg <span style="color:${acol};font-size:10px">${arrow}${Math.abs(delta).toLocaleString()}</span></span></div><div style="height:4px;background:#111;border-radius:2px"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#4DA3FF,#FFD20E);border-radius:2px"></div></div></div><div style="font-size:10px;color:#444;margin-left:6px;width:40px">ER ${m.er}%</div></div>`;
   }).join('');
 
   el.innerHTML = `
@@ -886,12 +1045,12 @@ function renderInsights() {
     <div class="rec-card">
       <h3>🔖 Що зберігають vs що репостять</h3>
       <div style="margin-bottom:12px">
-        <div style="font-size:11px;color:#555;margin-bottom:8px">Avg save rate: <strong style="color:#405DE6">${avgSaveRate}%</strong> · Avg share rate: <strong style="color:#E1306C">${avgShareRate}%</strong></div>
+        <div style="font-size:11px;color:#555;margin-bottom:8px">Avg save rate: <strong style="color:#FFB200">${avgSaveRate}%</strong> · Avg share rate: <strong style="color:#FFD20E">${avgShareRate}%</strong></div>
         <p style="font-size:11px;color:#444;margin-bottom:10px">Топ за збереженнями (=освітній/корисний контент):</p>
         ${topSaved.map(r=>`<div class="top-angle"><div class="angle-title">${(r.transcript||'').split(' ').slice(0,10).join(' ')}...</div><div class="angle-stats">🔖 ${r.save_rate}% save rate · ${r.saves} збережень · ${r.views.toLocaleString()} views</div></div>`).join('')}
       </div>
       <p style="font-size:11px;color:#444;margin:10px 0 8px">Топ за репостами (=вірусний/розважальний контент):</p>
-      ${topShared.map(r=>`<div class="top-angle" style="border-left-color:#E1306C"><div class="angle-title">${(r.transcript||'').split(' ').slice(0,10).join(' ')}...</div><div class="angle-stats">📤 ${r.shares} репостів · ${r.views.toLocaleString()} views · save ${r.saves}</div></div>`).join('')}
+      ${topShared.map(r=>`<div class="top-angle" style="border-left-color:#FFD20E"><div class="angle-title">${(r.transcript||'').split(' ').slice(0,10).join(' ')}...</div><div class="angle-stats">📤 ${r.shares} репостів · ${r.views.toLocaleString()} views · save ${r.saves}</div></div>`).join('')}
     </div>
 
     <!-- Распределение просмотров -->
@@ -914,8 +1073,8 @@ function renderInsights() {
     data: {
       labels: sorted.map(r=>r.date.slice(5)),
       datasets: [
-        { label: 'Перегляди', data: sorted.map(r=>r.views), backgroundColor: 'rgba(131,58,180,0.4)', borderRadius: 2 },
-        { label: 'Ковзне avg (5)', data: ma, type: 'line', borderColor: '#E1306C', backgroundColor: 'transparent', tension: 0.4, pointRadius: 0, borderWidth: 2 }
+        { label: 'Перегляди', data: sorted.map(r=>r.views), backgroundColor: 'rgba(120,124,134,0.35)', borderRadius: 2 },
+        { label: 'Ковзне avg (5)', data: ma, type: 'line', borderColor: '#FFD20E', backgroundColor: 'transparent', tension: 0.4, pointRadius: 0, borderWidth: 2 }
       ]
     },
     options: {
@@ -963,7 +1122,7 @@ function renderPreviews() {
     const url = URL.createObjectURL(f);
     return `<div style="position:relative;flex-shrink:0">
       <img src="${url}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:2px solid #2a2a2a">
-      <div style="position:absolute;top:-4px;left:-4px;width:16px;height:16px;background:#E1306C;border-radius:50%;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;color:#fff">${i+1}</div>
+      <div style="position:absolute;top:-4px;left:-4px;width:16px;height:16px;background:#FFD20E;border-radius:50%;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;color:#fff">${i+1}</div>
       <div onclick="removeSlide(${i})" style="position:absolute;top:-4px;right:-4px;width:16px;height:16px;background:#333;border-radius:50%;font-size:9px;display:flex;align-items:center;justify-content:center;color:#aaa;cursor:pointer">✕</div>
     </div>`;
   }).join('');
@@ -1117,7 +1276,22 @@ function pollStatus() {
   },1000);
 }
 
+async function loadCredit() {
+  if (window.__OFFLINE__) return; // в офлайн-файлі лишаємо вшите значення
+  try {
+    const m = await (await fetch('/api/meta')).json();
+    if (m && m.handle) {
+      const a = document.getElementById('creditLink');
+      if (a) { a.textContent = '@' + m.handle; a.href = m.url; }
+    }
+  } catch (e) {}
+}
+
 loadData();
+loadCredit();
 </script>
+<footer style="text-align:center;padding:24px 20px;margin-top:24px;border-top:1px solid var(--border-soft);color:var(--faint);font-size:12px">
+  Створено <a id="creditLink" class="ig" href="https://instagram.com/hlyboki_sensy" target="_blank" rel="noopener">@hlyboki_sensy</a>
+</footer>
 </body>
 </html>
