@@ -25,6 +25,7 @@ ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY", "YOUR_ANTHROPIC_KEY_HERE")
 BASE = "https://graph.instagram.com/v25.0"
 DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = f"{DIR}/reels_data.json"
+STORIES_FILE = f"{DIR}/stories_data.json"
 AUDIO_DIR = f"{DIR}/audio"
 os.makedirs(AUDIO_DIR, exist_ok=True)
 
@@ -49,6 +50,73 @@ def fetch_insights(media_id):
     for item in r.get("data", []):
         result[item["name"]] = item["values"][0]["value"]
     return result
+
+def _insights_breakdown(metrics, since, until):
+    """Акаунт-аналітика total_value з розбивкою по типу контенту (STORY/REEL/POST...).
+    Повертає {metric: {'total': N, 'by': {'STORY': N, 'REEL': N, ...}}}."""
+    r = requests.get(f"{BASE}/me/insights", params={
+        "metric": ",".join(metrics),
+        "period": "day",
+        "metric_type": "total_value",
+        "breakdown": "media_product_type",
+        "since": since,
+        "until": until,
+        "access_token": TOKEN,
+    }).json()
+    out = {}
+    for item in r.get("data", []):
+        tv = item.get("total_value", {}) or {}
+        by = {}
+        bds = tv.get("breakdowns", []) or []
+        if bds:
+            for res in bds[0].get("results", []):
+                dv = res.get("dimension_values", [])
+                if dv:
+                    by[dv[0]] = res.get("value", 0)
+        out[item["name"]] = {"total": tv.get("value", 0), "by": by}
+    return out
+
+def fetch_stories(days=90):
+    """Збирає аналітику сторіз за останні N днів: агрегат + тижневий тренд.
+    Дані беруться з акаунт-аналітики (media_product_type=STORY) — це працює
+    і для минулих періодів (на відміну від /me/stories, що дає лише активні)."""
+    from datetime import timedelta
+    today = datetime.utcnow().date()
+    since = today - timedelta(days=days)
+    metrics = ["reach", "total_interactions", "shares"]
+    summ = _insights_breakdown(metrics, since.isoformat(), today.isoformat())
+
+    def sv(m):
+        return summ.get(m, {}).get("by", {}).get("STORY", 0)
+
+    total_reach = summ.get("reach", {}).get("total", 0)
+    story_reach = sv("reach")
+    summary = {
+        "reach": story_reach,
+        "interactions": sv("total_interactions"),
+        "shares": sv("shares"),
+        "share_of_reach": round(story_reach / total_reach * 100, 1) if total_reach else 0,
+    }
+
+    # Тижневий тренд (один запит на тиждень)
+    trend = []
+    d = since
+    while d < today:
+        wk_end = min(d + timedelta(days=7), today)
+        wk = _insights_breakdown(["reach", "total_interactions"], d.isoformat(), wk_end.isoformat())
+        trend.append({
+            "week": d.isoformat(),
+            "reach": wk.get("reach", {}).get("by", {}).get("STORY", 0),
+            "interactions": wk.get("total_interactions", {}).get("by", {}).get("STORY", 0),
+        })
+        d = wk_end
+
+    return {
+        "summary": summary,
+        "trend": trend,
+        "days": days,
+        "updated": datetime.utcnow().isoformat(),
+    }
 
 _whisper_model = None
 
@@ -203,6 +271,27 @@ def api_followers():
                     date = v["end_time"][:10]
                     result[date] = v["value"]
         return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+@app.route("/api/stories")
+def api_stories():
+    """Аналітика сторіз за 90 днів. Кеш у stories_data.json (TTL 6 год), ?refresh=1 — оновити."""
+    force = request.args.get("refresh") == "1"
+    try:
+        if not force and os.path.exists(STORIES_FILE):
+            with open(STORIES_FILE, encoding="utf-8") as f:
+                cached = json.load(f)
+            try:
+                age = (datetime.utcnow() - datetime.fromisoformat(cached.get("updated", ""))).total_seconds()
+            except Exception:
+                age = 1e9
+            if age < 6 * 3600:
+                return jsonify(cached)
+        data = fetch_stories(90)
+        with open(STORIES_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return jsonify(data)
     except Exception as e:
         return jsonify({"error": str(e)})
 

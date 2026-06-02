@@ -146,6 +146,7 @@ a.ig { color:#E1306C; text-decoration:none; }
 <div class="tabs">
   <div class="tab active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 Дашборд</div>
   <div class="tab" data-tab="followers" onclick="switchTab('followers')">👥 Підписники</div>
+  <div class="tab" data-tab="stories" onclick="switchTab('stories')">📸 Сторіз</div>
   <div class="tab" data-tab="patterns" onclick="switchTab('patterns')">🧠 Патерни мовлення</div>
   <div class="tab" data-tab="scripts" onclick="switchTab('scripts')">📝 Скрипти</div>
   <div class="tab" data-tab="insights" onclick="switchTab('insights')">💡 Інсайти</div>
@@ -199,6 +200,30 @@ a.ig { color:#E1306C; text-decoration:none; }
     <h3>📈 Перегляди рілса vs приріст підписників того ж дня</h3>
     <canvas id="cCorrelation" height="80"></canvas>
   </div>
+</div>
+</div>
+
+<!-- TAB: STORIES -->
+<div id="tab-stories" class="tab-content">
+<div class="container">
+  <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+    <div style="background:#1a1a2e;border:1px solid #2a2a4a;border-radius:10px;padding:14px 18px;font-size:12px;color:#8888cc;line-height:1.6;flex:1;min-width:240px">
+      📸 <strong style="color:#aaa">Аналітика сторіз за 90 днів.</strong>
+      Instagram віддає сторіз лише агреговано (охоплення, взаємодії, репости) —
+      по кожній окремій старій сторіз даних в API немає.
+    </div>
+    <button class="btn btn-primary" id="btnStoriesRefresh" onclick="renderStories(true)">🔄 Оновити сторіз</button>
+  </div>
+  <div class="stats-grid" id="storiesStats"></div>
+  <div class="chart-card" style="margin-top:16px">
+    <h3>📈 Охоплення сторіз по тижнях</h3>
+    <canvas id="cStoriesReach" height="80"></canvas>
+  </div>
+  <div class="chart-card" style="margin-top:16px">
+    <h3>💬 Взаємодії зі сторіз по тижнях</h3>
+    <canvas id="cStoriesInter" height="80"></canvas>
+  </div>
+  <div id="storiesUpdated" style="margin-top:12px;font-size:11px;color:#444;text-align:center"></div>
 </div>
 </div>
 
@@ -340,6 +365,7 @@ function switchTab(name) {
   if (name==='patterns' && analysis.total_reels) renderPatterns();
   if (name==='scripts' && reels.length) renderScripts();
   if (name==='followers') renderFollowers();
+  if (name==='stories') renderStories();
   if (name==='insights' && reels.length) renderInsights();
   if (name==='generator') initGenerator();
 }
@@ -428,6 +454,49 @@ async function renderFollowers() {
       }
     }
   });
+}
+
+let storiesData = null;
+async function renderStories(force) {
+  const stats = document.getElementById('storiesStats');
+  const btn = document.getElementById('btnStoriesRefresh');
+  if (!storiesData || force) {
+    if (stats) stats.innerHTML = '<div class="no-data">Завантажую аналітику сторіз…</div>';
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Збираю…'; }
+    try {
+      const r = await fetch('/api/stories' + (force ? '?refresh=1' : ''));
+      storiesData = await r.json();
+    } catch (e) { storiesData = { error: String(e) }; }
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Оновити сторіз'; }
+  }
+  const d = storiesData || {};
+  if (d.error || !d.summary) {
+    if (stats) stats.innerHTML = `<div class="no-data">Не вдалося завантажити сторіз${d.error ? ': ' + d.error : ''}</div>`;
+    return;
+  }
+  const s = d.summary;
+  stats.innerHTML = [
+    ['👥 Охоплення', (s.reach||0).toLocaleString(), 'сторіз, 90 днів'],
+    ['💬 Взаємодії', (s.interactions||0).toLocaleString(), 'сторіз, 90 днів'],
+    ['📤 Репости', (s.shares||0).toLocaleString(), 'сторіз, 90 днів'],
+    ['📊 Частка охоплення', (s.share_of_reach||0)+'%', 'сторіз від усього контенту'],
+  ].map(([l,v,sub])=>`<div class="stat-card"><div class="lbl">${l}</div><div class="val">${v}</div><div class="sub">${sub}</div></div>`).join('');
+
+  const trend = d.trend || [];
+  const labels = trend.map(t => (t.week||'').slice(5));
+  ['stReach','stInter'].forEach(k=>{ if(charts[k]){charts[k].destroy();} });
+  charts.stReach = new Chart(document.getElementById('cStoriesReach'), {
+    type:'bar',
+    data:{labels,datasets:[{label:'Охоплення сторіз',data:trend.map(t=>t.reach||0),backgroundColor:'rgba(225,48,108,0.7)',borderRadius:4}]},
+    options:{plugins:{legend:{labels:{color:'#555',font:{size:10}}}},scales:{x:{ticks:{color:'#444',font:{size:9}},grid:{color:'#1a1a1a'}},y:{ticks:{color:'#444'},grid:{color:'#1a1a1a'}}}}
+  });
+  charts.stInter = new Chart(document.getElementById('cStoriesInter'), {
+    type:'line',
+    data:{labels,datasets:[{label:'Взаємодії зі сторіз',data:trend.map(t=>t.interactions||0),borderColor:'#833AB4',backgroundColor:'rgba(131,58,180,0.1)',fill:true,tension:.4,pointRadius:2}]},
+    options:{plugins:{legend:{labels:{color:'#555',font:{size:10}}}},scales:{x:{ticks:{color:'#444',font:{size:9}},grid:{color:'#1a1a1a'}},y:{ticks:{color:'#444'},grid:{color:'#1a1a1a'}}}}
+  });
+  const upd = document.getElementById('storiesUpdated');
+  if (upd && d.updated) upd.textContent = 'Оновлено: ' + d.updated.slice(0,16).replace('T',' ') + ' UTC';
 }
 
 async function loadData() {
