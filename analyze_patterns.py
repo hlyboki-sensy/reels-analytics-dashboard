@@ -60,7 +60,7 @@ def get_words(texts):
     """Усі значущі слова зі списку текстів (українська + кирилиця)."""
     all_words = []
     for t in texts:
-        words = re.findall(r'[а-щьюяіїєґё]{3,}', t.lower())
+        words = re.findall(r'[а-щьюяіїєґ]{3,}', t.lower())
         all_words.extend([w for w in words if w not in STOP])
     return all_words
 
