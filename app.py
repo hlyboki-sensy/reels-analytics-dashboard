@@ -295,6 +295,18 @@ def api_stories():
     except Exception as e:
         return jsonify({"error": str(e)})
 
+@app.route("/api/stories_collected")
+def api_stories_collected():
+    """Окремі сторіз, зібрані збирачем collect_stories.py (накопичується вперед)."""
+    path = os.path.join(DIR, "stories_media.json")
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                return jsonify(json.load(f))
+        except Exception as e:
+            return jsonify({"error": str(e)})
+    return jsonify([])
+
 @app.route("/api/reanalyze")
 def api_reanalyze():
     def run():

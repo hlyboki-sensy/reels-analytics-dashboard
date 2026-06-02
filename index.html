@@ -224,6 +224,14 @@ a.ig { color:#E1306C; text-decoration:none; }
     <canvas id="cStoriesInter" height="80"></canvas>
   </div>
   <div id="storiesUpdated" style="margin-top:12px;font-size:11px;color:#444;text-align:center"></div>
+
+  <div class="table-card" style="margin-top:20px">
+    <h3>🎬 Окремі сторіз <span style="font-size:11px;color:#666;font-weight:400">— збирається автоматично 2×/день</span></h3>
+    <div style="background:#161616;border:1px solid #232323;border-radius:8px;padding:10px 14px;font-size:11px;color:#777;line-height:1.6;margin-bottom:12px">
+      Кожна окрема сторіз живе лише 24 год, тож тут накопичуються тільки ті, що збирач устиг зловити, поки вони були активні. Список росте з кожним днем.
+    </div>
+    <div id="storiesCollected"><div class="no-data">Ще порожньо — дані з'являться, коли збирач упіймає перші активні сторіз.</div></div>
+  </div>
 </div>
 </div>
 
@@ -497,6 +505,34 @@ async function renderStories(force) {
   });
   const upd = document.getElementById('storiesUpdated');
   if (upd && d.updated) upd.textContent = 'Оновлено: ' + d.updated.slice(0,16).replace('T',' ') + ' UTC';
+
+  renderCollectedStories();
+}
+
+async function renderCollectedStories() {
+  const box = document.getElementById('storiesCollected');
+  if (!box) return;
+  let list = [];
+  try { list = await (await fetch('/api/stories_collected')).json(); } catch (e) { list = []; }
+  if (!Array.isArray(list) || !list.length) return; // лишаємо плейсхолдер
+  const n = (v) => (v==null ? '—' : Number(v).toLocaleString());
+  box.innerHTML = `<table><thead><tr>
+      <th>Дата</th><th>Тип</th><th>👥 Reach</th><th>👁 Перегляди</th><th>💬 Відповіді</th><th>📤 Репости</th><th>Σ Взаємодії</th><th></th>
+    </tr></thead><tbody>${list.map(s=>{
+      const i = s.insights||{};
+      const dt = (s.timestamp||'').slice(0,10);
+      return `<tr>
+        <td style="color:#555;white-space:nowrap">${dt}</td>
+        <td style="color:#666">${s.media_type||'—'}</td>
+        <td>${n(i.reach)}</td>
+        <td>${n(i.views)}</td>
+        <td>${n(i.replies)}</td>
+        <td>${n(i.shares)}</td>
+        <td>${n(i.total_interactions)}</td>
+        <td>${s.permalink?`<a class="ig" href="${s.permalink}" target="_blank">↗</a>`:''}</td>
+      </tr>`;
+    }).join('')}</tbody></table>
+    <div style="margin-top:8px;font-size:11px;color:#555">Усього зібрано сторіз: ${list.length}</div>`;
 }
 
 async function loadData() {
