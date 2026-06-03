@@ -333,28 +333,46 @@ def api_analysis():
 
 @app.route("/api/followers")
 def api_followers():
-    """Приріст підписників по днях за останні ~90 днів."""
+    """Приріст підписників по днях за обраний діапазон (?since=&until= або ?days=).
+    follower_count в API обмежений ~30 днями на запит, тож ділимо на вікна."""
+    from datetime import timedelta, date as _date
+    today = datetime.utcnow().date()
+    since_s = request.args.get("since")
+    until_s = request.args.get("until")
     try:
-        from datetime import timedelta
-        today = datetime.utcnow().date()
-        since = (today - timedelta(days=90)).isoformat()
-        until = today.isoformat()
+        if since_s and until_s:
+            since = _date.fromisoformat(since_s)
+            until = _date.fromisoformat(until_s)
+        else:
+            try:
+                days = int(request.args.get("days", "90"))
+            except ValueError:
+                days = 90
+            until = today
+            since = today - timedelta(days=days)
+        if until > today:
+            until = today
+        if since >= until:
+            since = until - timedelta(days=1)
+    except ValueError:
+        until = today
+        since = today - timedelta(days=90)
+    try:
         url = f"{BASE}/me/insights"
-        params = {
-            "metric": "follower_count",
-            "period": "day",
-            "since": since,
-            "until": until,
-            "access_token": TOKEN
-        }
-        r = requests.get(url, params=params).json()
-        data = r.get("data", [])
         result = {}
-        for item in data:
-            if item["name"] == "follower_count":
-                for v in item["values"]:
-                    date = v["end_time"][:10]
-                    result[date] = v["value"]
+        d = since
+        while d < until:
+            chunk_end = min(d + timedelta(days=30), until)
+            r = requests.get(url, params={
+                "metric": "follower_count", "period": "day",
+                "since": d.isoformat(), "until": chunk_end.isoformat(),
+                "access_token": TOKEN,
+            }).json()
+            for item in r.get("data", []):
+                if item["name"] == "follower_count":
+                    for v in item["values"]:
+                        result[v["end_time"][:10]] = v["value"]
+            d = chunk_end
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)})

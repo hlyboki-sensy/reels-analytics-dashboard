@@ -237,11 +237,24 @@ a.ig:hover { color:#ffdd45; }
 <!-- TAB: FOLLOWERS -->
 <div id="tab-followers" class="tab-content">
 <div class="container">
-  <div style="margin-bottom:16px">
-    <div style="background:#1a1a2e;border:1px solid #2a2a4a;border-radius:10px;padding:14px 18px;font-size:12px;color:#8888cc;line-height:1.6">
-      ⚠️ <strong style="color:#aaa">Meta не дає дані "follows per reel" без App Review.</strong>
+  <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:13px 17px;font-size:12px;color:var(--muted);line-height:1.6;flex:1;min-width:240px">
+      ⚠️ <strong style="color:var(--text)">Meta не дає дані «follows per reel» без App Review.</strong>
       Замість цього: приріст підписників по днях + маркери, коли вийшов кожен рілс —
       так видно, який рілс дав стрибок.
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+      <select id="folPreset" onchange="folApplyPreset()" style="background:var(--surface-3);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;cursor:pointer">
+        <option value="7">Останні 7 днів</option>
+        <option value="30">Останні 30 днів</option>
+        <option value="60">Останні 60 днів</option>
+        <option value="90" selected>Останні 90 днів</option>
+        <option value="custom">Свій діапазон</option>
+      </select>
+      <input type="date" id="folFrom" onchange="folCustom()" style="background:var(--surface-3);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-size:12px;color-scheme:dark">
+      <span style="color:var(--faint)">—</span>
+      <input type="date" id="folTo" onchange="folCustom()" style="background:var(--surface-3);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-size:12px;color-scheme:dark">
+      <button class="btn btn-primary" id="btnFolRefresh" onclick="renderFollowers(true)">🔄 Оновити</button>
     </div>
   </div>
   <div class="chart-card" style="margin-bottom:16px">
@@ -444,12 +457,39 @@ function switchTab(name) {
   if (name==='generator') initGenerator();
 }
 
+let followersCache = {};
+function folInitDates() {
+  const f=document.getElementById('folFrom'), t=document.getElementById('folTo');
+  if (f && t && !t.value) { t.value=_today(); t.max=_today(); f.value=_daysAgo(90); f.max=_today(); }
+}
+function folApplyPreset() {
+  const p=document.getElementById('folPreset').value;
+  if (p==='custom') return;
+  document.getElementById('folTo').value=_today();
+  document.getElementById('folFrom').value=_daysAgo(parseInt(p));
+  renderFollowers();
+}
+function folCustom() {
+  document.getElementById('folPreset').value='custom';
+  renderFollowers();
+}
+
 let followersData = {};
-async function renderFollowers() {
-  if (!Object.keys(followersData).length) {
-    const r = await fetch('/api/followers');
-    followersData = await r.json();
+async function renderFollowers(force) {
+  folInitDates();
+  const since = document.getElementById('folFrom').value || _daysAgo(90);
+  const until = document.getElementById('folTo').value || _today();
+  const key = since+'_'+until;
+  const btn = document.getElementById('btnFolRefresh');
+  if (!followersCache[key] || force) {
+    if (btn) { btn.disabled=true; btn.textContent='⏳ Збираю…'; }
+    try {
+      const r = await fetch('/api/followers?since='+since+'&until='+until);
+      followersCache[key] = await r.json();
+    } catch(e) { followersCache[key] = {}; }
+    if (btn) { btn.disabled=false; btn.textContent='🔄 Оновити'; }
   }
+  followersData = followersCache[key] || {};
 
   // Збираємо всі дати
   const dates = Object.keys(followersData).sort();
