@@ -377,6 +377,75 @@ def api_followers():
     except Exception as e:
         return jsonify({"error": str(e)})
 
+def _fetch_new_followers(since, until):
+    """{date: к-сть нових підписників} за діапазон (chunked по 30 днів)."""
+    from datetime import timedelta
+    url = f"{BASE}/me/insights"
+    result = {}
+    d = since
+    while d < until:
+        ce = min(d + timedelta(days=30), until)
+        r = requests.get(url, params={
+            "metric": "follower_count", "period": "day",
+            "since": d.isoformat(), "until": ce.isoformat(), "access_token": TOKEN,
+        }).json()
+        for item in r.get("data", []):
+            if item["name"] == "follower_count":
+                for v in item["values"]:
+                    result[v["end_time"][:10]] = v["value"]
+        d = ce
+    return result
+
+@app.route("/api/unfollows")
+def api_unfollows():
+    """Оцінка відписок по днях: відписки ≈ нові підписники − чиста зміна загальної к-сті.
+    Спирається на щоденні знімки followers_snapshots.json (збирач collect_followers.py).
+    Поіменно «хто» — API не дає; лише кількість, і лише вперед від старту збору."""
+    from datetime import timedelta, date as _date
+    today = datetime.utcnow().date()
+    since_s = request.args.get("since")
+    until_s = request.args.get("until")
+    try:
+        if since_s and until_s:
+            since = _date.fromisoformat(since_s); until = _date.fromisoformat(until_s)
+        else:
+            days = int(request.args.get("days", "90"))
+            until = today; since = today - timedelta(days=days)
+        if until > today: until = today
+        if since >= until: since = until - timedelta(days=1)
+    except Exception:
+        until = today; since = today - timedelta(days=90)
+
+    path = os.path.join(DIR, "followers_snapshots.json")
+    snaps = {}
+    if os.path.exists(path):
+        try:
+            snaps = json.load(open(path, encoding="utf-8"))
+        except Exception:
+            snaps = {}
+    if len([d for d in snaps]) < 2:
+        return jsonify({"ready": False, "snapshots": len(snaps), "rows": []})
+
+    try:
+        gross = _fetch_new_followers(since, until)
+        dates = sorted(snaps.keys())
+        rows = []
+        for i in range(1, len(dates)):
+            d_prev, d_cur = dates[i - 1], dates[i]
+            if not (since.isoformat() <= d_cur <= until.isoformat()):
+                continue
+            net = snaps[d_cur] - snaps[d_prev]
+            # сумуємо нових за всі дні проміжку (на випадок пропущених днів)
+            pd = _date.fromisoformat(d_prev); cd = _date.fromisoformat(d_cur)
+            gained = 0; x = pd + timedelta(days=1)
+            while x <= cd:
+                gained += gross.get(x.isoformat(), 0); x += timedelta(days=1)
+            lost = max(0, gained - net)
+            rows.append({"date": d_cur, "gained": gained, "lost": lost, "net": net})
+        return jsonify({"ready": True, "snapshots": len(snaps), "rows": rows})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
 @app.route("/api/stories")
 def api_stories():
     """Аналітика сторіз за діапазон дат (?since=YYYY-MM-DD&until=YYYY-MM-DD)
