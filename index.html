@@ -899,21 +899,29 @@ function renderHeatmap() {
   });
   let maxAvg=0; const avg={};
   for(const k in sum){ avg[k]=sum[k]/cnt[k]; if(avg[k]>maxAvg)maxAvg=avg[k]; }
-  let html='<table style="border-collapse:collapse;font-size:10px"><thead><tr><th style="border:0"></th>';
-  for(let h=0;h<24;h+=2) html+=`<th style="border:0;color:var(--faint);font-weight:400;padding:0 1px;text-align:center;width:18px">${h}</th>`;
+  const C=15; // ширина клітинки, px
+  let html='<table style="border-collapse:collapse;width:auto;table-layout:fixed;font-size:9px"><thead><tr><th style="border:0;padding:0 8px 4px 0;width:auto"></th>';
+  for(let h=0;h<24;h++) html+=`<th style="border:0;padding:0;width:${C}px;height:13px;color:var(--faint);font-weight:400;text-align:center">${h%2===0?h:''}</th>`;
   html+='</tr></thead><tbody>';
   for(let wd=0;wd<7;wd++){
-    html+=`<tr><td style="border:0;color:var(--muted);padding-right:8px;white-space:nowrap">${days[wd]}</td>`;
+    html+=`<tr><td style="border:0;padding:0 8px 0 0;color:var(--muted);white-space:nowrap;text-align:right;font-size:11px">${days[wd]}</td>`;
     for(let h=0;h<24;h++){
       const k=wd+'_'+h; const a=avg[k]||0;
-      const op = a? (0.12 + 0.88*(a/maxAvg)) : 0;
+      const op = a? (0.15 + 0.85*(a/maxAvg)) : 0;
       const bg = a? `rgba(255,210,14,${op.toFixed(2)})` : 'var(--surface-3)';
-      const tip = a? `${days[wd]} ${h}:00 — сер. ${Math.round(a).toLocaleString()} (${cnt[k]} публ.)` : `${days[wd]} ${h}:00 — немає`;
-      html+=`<td title="${tip}" style="width:13px;height:18px;background:${bg};border:1px solid var(--app)"></td>`;
+      const tip = a? `${days[wd]} ${h}:00 — сер. ${Math.round(a).toLocaleString()} охопл. (${cnt[k]} публ.)` : `${days[wd]} ${h}:00 — публікацій не було`;
+      html+=`<td title="${tip}" style="padding:0;width:${C}px;height:17px;background:${bg};border:1px solid var(--app)"></td>`;
     }
     html+='</tr>';
   }
   html+='</tbody></table>';
+  // легенда
+  html+=`<div style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:11px;color:var(--faint)">
+    <span>менше</span>
+    <span style="display:inline-flex">${[0.15,0.4,0.65,0.9,1].map(o=>`<span style="width:16px;height:12px;background:rgba(255,210,14,${o})"></span>`).join('')}</span>
+    <span>більше</span>
+    <span style="margin-left:14px"><span style="display:inline-block;width:12px;height:12px;background:var(--surface-3);vertical-align:middle;border:1px solid var(--app)"></span> публікацій не було</span>
+  </div>`;
   box.innerHTML=html;
 }
 
