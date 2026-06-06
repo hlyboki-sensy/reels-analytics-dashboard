@@ -388,11 +388,26 @@ a.ig:hover{color:#ffdb40}
       </div>
 
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <button id="genBtn" onclick="generateScript()" class="btn btn-primary" style="padding:10px 24px;font-size:13px">
-          ✨ Згенерувати скрипт
+        <button id="bridgeBtn" onclick="prepareBridge()" class="btn btn-primary" style="padding:10px 22px;font-size:13px">
+          📋 Підготувати запит для Claude
         </button>
-        <span id="genStatus" style="font-size:12px;color:#555"></span>
+        <button id="genBtn" onclick="generateScript()" class="btn btn-ghost" style="padding:10px 18px;font-size:12px" title="Автоматично — потрібен API-ключ Anthropic">⚡ Авто (з ключем)</button>
+        <span id="genStatus" style="font-size:12px;color:var(--faint)"></span>
       </div>
+    </div>
+
+    <!-- Місток копіювання: запит для Claude без API-ключа -->
+    <div id="bridgePanel" class="insight-card" style="display:none;margin-bottom:16px">
+      <h3>📋 Запит для Claude</h3>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+        <b style="color:var(--text)">1.</b> Натисни «Скопіювати». &nbsp; <b style="color:var(--text)">2.</b> Встав у Claude (застосунок або claude.ai) і надішли. &nbsp; <b style="color:var(--text)">3.</b> Скопіюй відповідь Claude і встав у поле нижче.
+      </p>
+      <div style="position:relative;margin-bottom:14px">
+        <textarea id="bridgePrompt" readonly rows="6" style="width:100%;background:var(--surface-3);border:1px solid var(--border);color:var(--muted);padding:12px 14px;border-radius:9px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+        <button onclick="copyBridge()" class="btn btn-primary" style="position:absolute;top:8px;right:8px;font-size:11px;padding:6px 12px">📋 Скопіювати</button>
+      </div>
+      <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px">Встав сюди відповідь Claude:</label>
+      <textarea id="bridgeAnswer" rows="4" placeholder="Сюди встав те, що написав Claude…" oninput="showBridgeAnswer()" style="width:100%;background:var(--surface-3);border:1px solid var(--border);color:var(--text);padding:12px 14px;border-radius:9px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
     </div>
 
     <!-- ВИЗУАЛЬНЫЙ АНАЛИЗ -->
@@ -1283,6 +1298,41 @@ function copyRoast() {
     btn.textContent = '✅ Скопійовано!';
     setTimeout(() => btn.textContent = '📋 Копіювати', 2000);
   });
+}
+
+async function prepareBridge() {
+  const topic = document.getElementById('genTopic').value.trim();
+  const extra = document.getElementById('genExtra').value.trim();
+  if (!topic) { document.getElementById('genTopic').focus(); return; }
+  const btn = document.getElementById('bridgeBtn'), st = document.getElementById('genStatus');
+  btn.disabled = true; btn.textContent = '⏳ Готую запит…';
+  try {
+    const r = await fetch('/api/generate_prompt', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic, extra })
+    });
+    const d = await r.json();
+    if (d.error) { st.textContent = '❌ ' + d.error; }
+    else {
+      document.getElementById('bridgePrompt').value = d.prompt;
+      document.getElementById('bridgePanel').style.display = 'block';
+      st.textContent = '✅ Запит готовий — копіюй у Claude';
+      document.getElementById('bridgePanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  } catch (e) { st.textContent = '❌ ' + e.message; }
+  btn.disabled = false; btn.textContent = '📋 Підготувати запит для Claude';
+}
+function copyBridge() {
+  const ta = document.getElementById('bridgePrompt'); ta.select();
+  navigator.clipboard.writeText(ta.value).then(() => {
+    document.getElementById('genStatus').textContent = '✅ Скопійовано — встав у Claude';
+  });
+}
+function showBridgeAnswer() {
+  const v = document.getElementById('bridgeAnswer').value;
+  document.getElementById('genOutput').textContent = v;
+  document.getElementById('genResult').style.display = v.trim() ? 'block' : 'none';
+  document.getElementById('genMeta').textContent = 'Згенеровано в Claude через місток копіювання';
 }
 
 function initGenerator() {

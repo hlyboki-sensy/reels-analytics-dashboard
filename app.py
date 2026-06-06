@@ -520,70 +520,60 @@ def api_reanalyze():
     threading.Thread(target=run, daemon=True).start()
     return jsonify({"ok": True})
 
-@app.route("/api/generate_script", methods=["POST"])
-def api_generate_script():
-    try:
-        api_key = ANTHROPIC_KEY or request.json.get("api_key", "")
-        if not api_key:
-            return jsonify({"error": "Немає API-ключа Anthropic. Додай його в .env або передай у запиті."})
+def _build_script_prompt(topic, extra):
+    """Будує (system_prompt, user_prompt) зі стилю/даних акаунта."""
+    # Топ-10 рілсів — різноманітна вибірка (за переглядами, збереженнями, ER)
+    data = load_data()
+    with_text = [r for r in data if r.get("transcript") and r.get("insights", {}).get("views", 0) > 0]
 
-        topic = request.json.get("topic", "").strip()
-        extra = request.json.get("extra", "").strip()
-        if not topic:
-            return jsonify({"error": "Вкажи тему"})
+    def score(r):
+        ins = r.get("insights", {})
+        v = ins.get("views", 0)
+        s = ins.get("saved", 0)
+        sh = ins.get("shares", 0)
+        ti = ins.get("total_interactions", 0)
+        er = ti / v if v > 0 else 0
+        # зважений скор: перегляди + бонус за високий ER і збереження
+        return v * (1 + er * 5 + s / max(v, 1) * 20)
 
-        # Топ-10 рілсів — різноманітна вибірка (за переглядами, збереженнями, ER)
-        data = load_data()
-        with_text = [r for r in data if r.get("transcript") and r.get("insights", {}).get("views", 0) > 0]
+    with_text.sort(key=score, reverse=True)
+    top = with_text[:10]
 
-        def score(r):
-            ins = r.get("insights", {})
-            v = ins.get("views", 0)
-            s = ins.get("saved", 0)
-            sh = ins.get("shares", 0)
-            ti = ins.get("total_interactions", 0)
-            er = ti / v if v > 0 else 0
-            # зважений скор: перегляди + бонус за високий ER і збереження
-            return v * (1 + er * 5 + s / max(v, 1) * 20)
+    examples = "\n\n---\n\n".join([
+        f"[{r.get('timestamp','')[:10]} · {r['insights']['views']:,} views · saves {r['insights'].get('saved',0)} · shares {r['insights'].get('shares',0)}]\n{r['transcript']}"
+        for r in top
+    ])
 
-        with_text.sort(key=score, reverse=True)
-        top = with_text[:10]
+    # Завантажуємо дані аналізу для точного профілю стилю
+    analysis = {}
+    afile = f"{DIR}/analysis.json"
+    if os.path.exists(afile):
+        with open(afile, encoding="utf-8") as f:
+            analysis = json.load(f)
 
-        examples = "\n\n---\n\n".join([
-            f"[{r.get('timestamp','')[:10]} · {r['insights']['views']:,} views · saves {r['insights'].get('saved',0)} · shares {r['insights'].get('shares',0)}]\n{r['transcript']}"
-            for r in top
-        ])
+    # Найкраща довжина з даних
+    la = analysis.get("length_analysis", {})
+    best_len_bucket = max(la.items(), key=lambda x: x[1].get("avg_views", 0))[0] if la else ""
+    avg_wc = analysis.get("overall", {}).get("avg_word_count", 0) or \
+             round(sum(len(r["transcript"].split()) for r in with_text) / max(len(with_text), 1))
+    best_len = f"{best_len_bucket} — це твій золотий розмір" if best_len_bucket else f"~{avg_wc} слів"
 
-        # Завантажуємо дані аналізу для точного профілю стилю
-        analysis = {}
-        afile = f"{DIR}/analysis.json"
-        if os.path.exists(afile):
-            with open(afile, encoding="utf-8") as f:
-                analysis = json.load(f)
+    # Слова-магніти з хуків
+    hook_words = [w["word"] for w in analysis.get("hook_winners", [])[:8]]
+    # Слова топ-рілсів
+    win_words = [w["word"] for w in analysis.get("word_winners", [])[:10]]
+    # Слова для збережень
+    save_words = [w["word"] for w in analysis.get("save_words", [])[:6]]
+    # Питання vs твердження
+    qs = analysis.get("questions_vs_statements", {})
+    q_better = (qs.get("with_question", {}).get("avg_views", 0) >
+                qs.get("without_question", {}).get("avg_views", 0))
+    # Розмовність
+    cs = analysis.get("casualness", {})
+    casual_better = (cs.get("high_casual", {}).get("avg_views", 0) >
+                     cs.get("low_casual", {}).get("avg_views", 0))
 
-        # Найкраща довжина з даних
-        la = analysis.get("length_analysis", {})
-        best_len_bucket = max(la.items(), key=lambda x: x[1].get("avg_views", 0))[0] if la else ""
-        avg_wc = analysis.get("overall", {}).get("avg_word_count", 0) or \
-                 round(sum(len(r["transcript"].split()) for r in with_text) / max(len(with_text), 1))
-        best_len = f"{best_len_bucket} — це твій золотий розмір" if best_len_bucket else f"~{avg_wc} слів"
-
-        # Слова-магніти з хуків
-        hook_words = [w["word"] for w in analysis.get("hook_winners", [])[:8]]
-        # Слова топ-рілсів
-        win_words = [w["word"] for w in analysis.get("word_winners", [])[:10]]
-        # Слова для збережень
-        save_words = [w["word"] for w in analysis.get("save_words", [])[:6]]
-        # Питання vs твердження
-        qs = analysis.get("questions_vs_statements", {})
-        q_better = (qs.get("with_question", {}).get("avg_views", 0) >
-                    qs.get("without_question", {}).get("avg_views", 0))
-        # Розмовність
-        cs = analysis.get("casualness", {})
-        casual_better = (cs.get("high_casual", {}).get("avg_views", 0) >
-                         cs.get("low_casual", {}).get("avg_views", 0))
-
-        style_profile = f"""ПРОФІЛЬ СТИЛЮ (на основі даних із {len(with_text)} рілсів цього акаунта):
+    style_profile = f"""ПРОФІЛЬ СТИЛЮ (на основі даних із {len(with_text)} рілсів цього акаунта):
 • Найкраща довжина: {best_len}
 • Хук: {"починати з питання (+залучення)" if q_better else "починати з провокаційного твердження"}
 • Стиль мовлення: {"розмовний зі сленгом — дає більше переглядів" if casual_better else "нейтральний діловий — працює краще в цього автора"}
@@ -592,14 +582,14 @@ def api_generate_script():
 • Слова, які спонукають зберігати: {', '.join(save_words) if save_words else 'немає даних'}
 • Середній ER найкращих рілсів: {analysis.get('overall', {}).get('avg_er', 0)}%"""
 
-        system_prompt = f"""Ти — персональний скрипт-райтер автора цього Instagram-акаунта.
+    system_prompt = f"""Ти — персональний скрипт-райтер автора цього Instagram-акаунта.
 Ти глибоко вивчив його дані й точно знаєш, що працює в його аудиторії.
 
 {style_profile}
 
 Твоє завдання — писати скрипти, які звучать на 100% як сам автор, а не як ШІ. Пиши українською."""
 
-        user_prompt = f"""Ось мої топ-10 рілсів — вивчи мій стиль, ритм, структуру фраз, переходи:
+    user_prompt = f"""Ось мої топ-10 рілсів — вивчи мій стиль, ритм, структуру фраз, переходи:
 
 {examples}
 
@@ -628,6 +618,22 @@ def api_generate_script():
 - Тип хука: ...
 - Ключові тригери: ...
 - Слова з твоїх патернів: ..."""
+    return system_prompt, user_prompt
+
+
+@app.route("/api/generate_script", methods=["POST"])
+def api_generate_script():
+    try:
+        api_key = ANTHROPIC_KEY or request.json.get("api_key", "")
+        if not api_key:
+            return jsonify({"error": "Немає API-ключа Anthropic. Додай його в .env або передай у запиті."})
+
+        topic = request.json.get("topic", "").strip()
+        extra = request.json.get("extra", "").strip()
+        if not topic:
+            return jsonify({"error": "Вкажи тему"})
+
+        system_prompt, user_prompt = _build_script_prompt(topic, extra)
 
         client = anthropic.Anthropic(api_key=api_key)
         msg = client.messages.create(
@@ -642,6 +648,19 @@ def api_generate_script():
         script_match = re.search(r'📝 ПОВНИЙ СКРИПТ:(.*?)(?:🔍|$)', result, re.DOTALL)
         word_count = len(script_match.group(1).split()) if script_match else 0
         return jsonify({"result": result, "word_count": word_count})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+@app.route("/api/generate_prompt", methods=["POST"])
+def api_generate_prompt():
+    """Повертає готовий запит для ручної генерації в Claude (місток копіювання, без ключа)."""
+    try:
+        topic = request.json.get("topic", "").strip()
+        extra = request.json.get("extra", "").strip()
+        if not topic:
+            return jsonify({"error": "Вкажи тему"})
+        system_prompt, user_prompt = _build_script_prompt(topic, extra)
+        return jsonify({"prompt": system_prompt + "\n\n" + user_prompt})
     except Exception as e:
         return jsonify({"error": str(e)})
 
