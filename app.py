@@ -320,6 +320,29 @@ def api_meta():
 def api_posts():
     return jsonify(load_posts())
 
+@app.route("/api/demographics")
+def api_demographics():
+    """Демографія підписників: вік, стать, місто, країна (за 90 днів)."""
+    try:
+        out = {}
+        for bd in ("age", "gender", "city", "country"):
+            r = requests.get(f"{BASE}/me/insights", params={
+                "metric": "follower_demographics", "period": "lifetime",
+                "metric_type": "total_value", "breakdown": bd,
+                "timeframe": "last_90_days", "access_token": TOKEN,
+            }).json()
+            rows = []
+            try:
+                for res in r["data"][0]["total_value"]["breakdowns"][0]["results"]:
+                    rows.append({"k": res["dimension_values"][0], "v": res.get("value", 0)})
+            except Exception:
+                pass
+            rows.sort(key=lambda x: -x["v"])
+            out[bd] = rows
+        return jsonify(out)
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
 @app.route("/api/sync_posts")
 def api_sync_posts():
     if status["running"]:
