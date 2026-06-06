@@ -129,7 +129,7 @@ def _get_whisper_model():
     global _whisper_model
     if _whisper_model is None:
         from faster_whisper import WhisperModel
-        size = os.environ.get("WHISPER_MODEL", "base")
+        size = os.environ.get("WHISPER_MODEL", "small")
         _whisper_model = WhisperModel(size, device="cpu", compute_type="int8")
     return _whisper_model
 
@@ -157,7 +157,15 @@ def download_and_transcribe(media_url, media_id):
             raise last_err
         model = _get_whisper_model()
         lang = os.environ.get("WHISPER_LANGUAGE", "uk")
-        segments, _info = model.transcribe(video_path, language=lang)
+        segments, _info = model.transcribe(
+            video_path,
+            language=lang,
+            beam_size=5,
+            vad_filter=True,                      # вирізає музику/тишу → менше «галюцинацій»
+            vad_parameters=dict(min_silence_duration_ms=500),
+            condition_on_previous_text=False,     # не тягне попередній текст → менше зациклень
+            no_speech_threshold=0.6,
+        )
         text = " ".join(s.text.strip() for s in segments).strip()
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(text)
