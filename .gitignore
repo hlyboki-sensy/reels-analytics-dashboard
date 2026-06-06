@@ -35,3 +35,4 @@ fetch_reels.py
 make_guide.py
 make_guide_claude.py
 transcribe_all.py
+*.out
