@@ -42,11 +42,23 @@ def save_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+def _api_get(url, params=None, tries=4, base_sleep=1.5):
+    """GET до Graph API з ретраями — стійко до обривів зʼєднання й тимчасових збоїв.
+    Важливо для великих акаунтів, де довга серія запитів інколи рветься."""
+    last = None
+    for i in range(tries):
+        try:
+            return requests.get(url, params=(params or {}), timeout=60).json()
+        except Exception as e:
+            last = e
+            time.sleep(base_sleep * (i + 1))
+    raise last
+
 def fetch_insights(media_id):
-    r = requests.get(f"{BASE}/{media_id}/insights", params={
+    r = _api_get(f"{BASE}/{media_id}/insights", {
         "metric": "reach,saved,shares,total_interactions,views",
         "access_token": TOKEN
-    }).json()
+    })
     result = {}
     for item in r.get("data", []):
         result[item["name"]] = item["values"][0]["value"]
@@ -188,10 +200,10 @@ def load_posts():
 
 def fetch_post_insights(media_id):
     """Інсайти допису (фото/каруселі стрічки)."""
-    r = requests.get(f"{BASE}/{media_id}/insights", params={
+    r = _api_get(f"{BASE}/{media_id}/insights", {
         "metric": "reach,saved,shares,total_interactions,views,profile_visits,follows",
         "access_token": TOKEN,
-    }).json()
+    })
     result = {}
     for item in r.get("data", []):
         try:
@@ -210,7 +222,7 @@ def sync_posts():
         params = {"fields": "id,caption,media_type,timestamp,like_count,comments_count,media_url,permalink,thumbnail_url", "limit": 100, "access_token": TOKEN}
         all_media = []
         while url:
-            r = requests.get(url, params=params if not all_media else {}).json()
+            r = _api_get(url, params if not all_media else {})
             all_media.extend(r.get("data", []))
             url = r.get("paging", {}).get("next")
             params = {}
@@ -231,13 +243,21 @@ def sync_posts():
                 continue
             post["insights"] = fetch_post_insights(mid)
             enriched.append(post)
+            if len(enriched) % 50 == 0:  # проміжне збереження (стійкість до обривів)
+                with open(POSTS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(enriched, f, ensure_ascii=False, indent=2)
             time.sleep(0.3)
 
         with open(POSTS_FILE, "w", encoding="utf-8") as f:
             json.dump(enriched, f, ensure_ascii=False, indent=2)
         status["message"] = f"✅ Готово! Оновлено дописів: {len(enriched)}"
     except Exception as e:
-        status["message"] = f"❌ Помилка: {e}"
+        try:  # зберігаємо частковий прогрес — наступний запуск продовжить
+            with open(POSTS_FILE, "w", encoding="utf-8") as f:
+                json.dump(enriched, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+        status["message"] = f"❌ Помилка (збережено {len(enriched)}): {e}"
     finally:
         status["running"] = False
 
@@ -252,7 +272,7 @@ def sync_reels(with_whisper=False):
         params = {"fields": "id,caption,media_type,timestamp,like_count,comments_count,media_url,permalink,thumbnail_url", "limit": 100, "access_token": TOKEN}
         all_media = []
         while url:
-            r = requests.get(url, params=params if not all_media else {}).json()
+            r = _api_get(url, params if not all_media else {})
             all_media.extend(r.get("data", []))
             url = r.get("paging", {}).get("next")
             params = {}
