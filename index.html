@@ -205,7 +205,8 @@ a.ig:hover{color:#ffdb40}
       <input id="search" placeholder="🔍 Пошук за підписом або скриптом..." oninput="renderTable()">
       <select id="sortCol" onchange="renderTable()">
         <option value="views">↓ Перегляди</option>
-        <option value="er">↓ ER%</option>
+        <option value="er">↓ ER (охопл.)</option>
+        <option value="erf">↓ ER (підпис.)</option>
         <option value="saves">↓ Saves</option>
         <option value="shares">↓ Shares</option>
         <option value="likes">↓ Вподобайки</option>
@@ -241,7 +242,8 @@ a.ig:hover{color:#ffdb40}
       <select id="sortColPosts" onchange="renderPostsTable()">
         <option value="reach">↓ Охоплення</option>
         <option value="views">↓ Перегляди</option>
-        <option value="er">↓ ER%</option>
+        <option value="er">↓ ER (охопл.)</option>
+        <option value="erf">↓ ER (підпис.)</option>
         <option value="saves">↓ Збереження</option>
         <option value="likes">↓ Вподобайки</option>
         <option value="profile_visits">↓ Візити профілю</option>
@@ -512,6 +514,8 @@ a.ig:hover{color:#ffdb40}
 <script>
 let reels = [], analysis = {}, charts = {};
 let posts = [], postsLoaded = false;
+let followersCount = 0;
+const erf = (interactions) => followersCount>0 ? Math.round((interactions||0)/followersCount*1000)/10 : 0;
 
 // Відкривати конкретну одиницю контенту як окрему сторінку допису (/p/КОД/),
 // а не іммерсивний рілс-вʼюер (/reel/КОД/), що схожий на стрічку.
@@ -784,10 +788,12 @@ async function renderPosts(force) {
     posts = raw.map(p => {
       const i = p.insights||{};
       const reach = i.reach||0;
+      const ti = i.total_interactions||0;
       return {...p, reach, views:i.views||0, saves:i.saved||0, shares:i.shares||0,
-        interactions:i.total_interactions||0, profile_visits:i.profile_visits||0, follows:i.follows||0,
+        interactions:ti, profile_visits:i.profile_visits||0, follows:i.follows||0,
         likes:p.like_count||0, comments:p.comments_count||0,
-        er: reach>0 ? Math.round((i.total_interactions||0)/reach*1000)/10 : 0,
+        er: reach>0 ? Math.round(ti/reach*1000)/10 : 0,        // взаємодії ÷ охоплення
+        erf: erf(ti),                                          // взаємодії ÷ підписники
         save_rate: reach>0 ? Math.round((i.saved||0)/reach*1000)/10 : 0,
         date:(p.timestamp||'').slice(0,10)};
     });
@@ -800,12 +806,14 @@ async function renderPosts(force) {
 function updatePostsUI() {
   if(!posts.length) return;
   const sum=(k)=>posts.reduce((s,p)=>s+(p[k]||0),0);
-  const aer=(posts.reduce((s,p)=>s+p.er,0)/posts.length).toFixed(1);
+  const tr=sum('reach'), ti=sum('interactions');
+  const aer = tr>0 ? (ti/tr*100).toFixed(1) : '0';                                   // агрегатний ER за охопленням
+  const aerf = followersCount>0 ? ((ti/posts.length)/followersCount*100).toFixed(1) : '0'; // сер. ER за підписниками
   document.getElementById('postsStats').innerHTML = [
-    ['Дописів',posts.length,''],['👥 Охоплення',sum('reach').toLocaleString(),'сумарно'],
+    ['Дописів',posts.length,''],['👥 Охоплення',tr.toLocaleString(),'сумарно'],
     ['👁 Перегляди',sum('views').toLocaleString(),'сумарно'],['❤️ Вподобайки',sum('likes').toLocaleString(),'сумарно'],
-    ['Avg ER%',aer+'%','до охоплення'],['🔖 Збереження',sum('saves').toLocaleString(),'сумарно'],
-    ['👤 Візити профілю',sum('profile_visits').toLocaleString(),'з дописів'],['➕ Нові підписки',sum('follows').toLocaleString(),'з дописів'],
+    ['ER за охопленням',aer+'%','взаємодії ÷ охоплення'],['ER за підписниками',aerf+'%','взаємодії ÷ підписники'],
+    ['🔖 Збереження',sum('saves').toLocaleString(),'сумарно'],['👤 Візити профілю',sum('profile_visits').toLocaleString(),'з дописів'],
   ].map(([l,v,s])=>`<div class="stat-card"><div class="lbl">${l}</div><div class="val">${v}</div>${s?`<div class="sub">${s}</div>`:''}</div>`).join('');
   buildPostsCharts(); renderPostsTable();
 }
@@ -831,7 +839,7 @@ function renderPostsTable() {
   if(!data.length){document.getElementById('tblPosts').innerHTML='<div class="no-data">Нічого не знайдено</div>';return;}
   const badge=er=>er>=5?`<span class="badge hi">${er}%</span>`:er>=2?`<span class="badge md">${er}%</span>`:`<span class="badge lo">${er}%</span>`;
   const tp=t=>t==='CAROUSEL_ALBUM'?'🖼 Карусель':'📷 Фото';
-  document.getElementById('tblPosts').innerHTML=`<table><thead><tr><th>#</th><th>Дата</th><th>Тип</th><th>Підпис</th><th>👥 Reach</th><th>👁 Views</th><th>❤️</th><th>🔖</th><th>👤 Візити</th><th>➕</th><th>ER%</th><th></th></tr></thead><tbody>${data.map((p,i)=>`<tr><td style="color:#555">${i+1}</td><td style="color:#888;white-space:nowrap">${p.date}</td><td style="color:#888;white-space:nowrap">${tp(p.media_type)}</td><td class="caption-cell" title="${(p.caption||'').replace(/"/g,'')}">${p.caption?p.caption.slice(0,50)+(p.caption.length>50?'…':''):'<span style="color:#3a3c44">—</span>'}</td><td><div class="bar-wrap"><strong>${p.reach.toLocaleString()}</strong><div class="mini-bar"><div class="mini-bar-fill" style="width:${Math.round(p.reach/maxR*100)}%"></div></div></div></td><td>${p.views.toLocaleString()}</td><td>${p.likes}</td><td>${p.saves}</td><td>${p.profile_visits}</td><td>${p.follows}</td><td>${badge(p.er)}</td><td><a class="ig" href="${igLink(p.permalink)}" target="_blank" rel="noopener" title="Відкрити в Instagram: ${igLink(p.permalink)}">↗</a></td></tr>`).join('')}</tbody></table>`;
+  document.getElementById('tblPosts').innerHTML=`<table><thead><tr><th>#</th><th>Дата</th><th>Тип</th><th>Підпис</th><th>👥 Reach</th><th>👁 Views</th><th>❤️</th><th>🔖</th><th>👤 Візити</th><th>➕</th><th title="взаємодії ÷ охоплення">ER</th><th title="взаємодії ÷ підписники">ER·пдп</th><th></th></tr></thead><tbody>${data.map((p,i)=>`<tr><td style="color:#555">${i+1}</td><td style="color:#888;white-space:nowrap">${p.date}</td><td style="color:#888;white-space:nowrap">${tp(p.media_type)}</td><td class="caption-cell" title="${(p.caption||'').replace(/"/g,'')}">${p.caption?p.caption.slice(0,50)+(p.caption.length>50?'…':''):'<span style="color:#3a3c44">—</span>'}</td><td><div class="bar-wrap"><strong>${p.reach.toLocaleString()}</strong><div class="mini-bar"><div class="mini-bar-fill" style="width:${Math.round(p.reach/maxR*100)}%"></div></div></div></td><td>${p.views.toLocaleString()}</td><td>${p.likes}</td><td>${p.saves}</td><td>${p.profile_visits}</td><td>${p.follows}</td><td>${badge(p.er)}</td><td style="color:var(--muted);font-variant-numeric:tabular-nums">${p.erf}%</td><td><a class="ig" href="${igLink(p.permalink)}" target="_blank" rel="noopener" title="Відкрити в Instagram: ${igLink(p.permalink)}">↗</a></td></tr>`).join('')}</tbody></table>`;
 }
 
 async function syncPosts() {
@@ -996,18 +1004,21 @@ function buildReport(){
 }
 
 async function loadData() {
+  try { const m = await (await fetch('/api/meta')).json(); followersCount = m.followers_count || followersCount; } catch(e) {}
   const [r1, r2] = await Promise.all([fetch('/api/reels'), fetch('/api/analysis')]);
   const raw = await r1.json();
   analysis = await r2.json();
 
   reels = raw.map(r => {
     const ins = r.insights||{};
-    const views = ins.views||0;
-    return {...r, views, reach:ins.reach||0, saves:ins.saved||0,
-      shares:ins.shares||0, interactions:ins.total_interactions||0,
+    const views = ins.views||0, reach = ins.reach||0, ti = ins.total_interactions||0;
+    return {...r, views, reach, saves:ins.saved||0,
+      shares:ins.shares||0, interactions:ti,
       likes:r.like_count||0, comments:r.comments_count||0,
-      er: views>0 ? Math.round((ins.total_interactions||0)/views*1000)/10 : 0,
-      save_rate: views>0 ? Math.round((ins.saved||0)/views*1000)/10 : 0,
+      er: reach>0 ? Math.round(ti/reach*1000)/10 : 0,            // взаємодії ÷ охоплення
+      erf: erf(ti),                                              // взаємодії ÷ підписники
+      reach_rate: followersCount>0 ? Math.round(reach/followersCount*1000)/10 : 0,
+      save_rate: reach>0 ? Math.round((ins.saved||0)/reach*1000)/10 : 0,
       date:(r.timestamp||'').slice(0,10), transcript:r.transcript||''};
   });
   reels.sort((a,b)=>b.views-a.views);
@@ -1019,15 +1030,18 @@ function updateUI() {
   if(!reels.length) return;
   const tv=reels.reduce((s,r)=>s+r.views,0), tr=reels.reduce((s,r)=>s+r.reach,0);
   const ts=reels.reduce((s,r)=>s+r.saves,0), tsh=reels.reduce((s,r)=>s+r.shares,0);
-  const av=Math.round(tv/reels.length), aer=(reels.reduce((s,r)=>s+r.er,0)/reels.length).toFixed(1);
+  const ti=reels.reduce((s,r)=>s+r.interactions,0);
+  const av=Math.round(tv/reels.length);
+  const aer = tr>0 ? (ti/tr*100).toFixed(1) : '0';                                  // агрегатний ER за охопленням
+  const aerf = followersCount>0 ? ((ti/reels.length)/followersCount*100).toFixed(1) : '0'; // сер. ER за підписниками
   const wt=reels.filter(r=>r.transcript).length;
 
-  document.getElementById('subtitle').textContent = `${reels.length} рілсів · ${wt} транскриптів`;
+  document.getElementById('subtitle').textContent = `${reels.length} рілсів · ${wt} транскриптів${followersCount?` · ${followersCount.toLocaleString()} підписників`:''}`;
   document.getElementById('statsGrid').innerHTML = [
     ['Рілсів',reels.length,''],['👁 Перегляди',tv.toLocaleString(),'сумарно'],
     ['👥 Охоплення',tr.toLocaleString(),'сумарно'],['Avg перегляди',av.toLocaleString(),'на рілс'],
-    ['Avg ER%',aer+'%','engagement'],['🔖 Saves',ts.toLocaleString(),'сумарно'],
-    ['📤 Shares',tsh.toLocaleString(),'сумарно'],['🎤 Скрипти',wt+'/'+reels.length,'Whisper'],
+    ['ER за охопленням',aer+'%','взаємодії ÷ охоплення'],['ER за підписниками',aerf+'%','взаємодії ÷ підписники'],
+    ['🔖 Saves',ts.toLocaleString(),'сумарно'],['📤 Shares',tsh.toLocaleString(),'сумарно'],
   ].map(([l,v,s])=>`<div class="stat-card"><div class="lbl">${l}</div><div class="val">${v}</div>${s?`<div class="sub">${s}</div>`:''}</div>`).join('');
 
   buildCharts(); renderTable();
@@ -1053,7 +1067,7 @@ function renderTable() {
   data.sort((a,b)=>col==='date'?b.date.localeCompare(a.date):b[col]-a[col]);
   if(!data.length){document.getElementById('tbl').innerHTML='<div class="no-data">Нічого не знайдено</div>';return;}
   const badge=er=>er>=5?`<span class="badge hi">${er}%</span>`:er>=2?`<span class="badge md">${er}%</span>`:`<span class="badge lo">${er}%</span>`;
-  document.getElementById('tbl').innerHTML=`<table><thead><tr><th>#</th><th>Дата</th><th>Підпис</th><th>👁 Views</th><th>👥 Reach</th><th>❤️</th><th>🔖</th><th>📤</th><th>ER%</th><th>🎤 Скрипт</th><th></th></tr></thead><tbody>${data.map((r,i)=>`<tr><td style="color:#333">${i+1}</td><td style="color:#555;white-space:nowrap">${r.date}</td><td class="caption-cell" title="${(r.caption||'').replace(/"/g,'')}">${r.caption?r.caption.slice(0,50)+(r.caption.length>50?'…':''):'<span style="color:#2a2a2a">—</span>'}</td><td><div class="bar-wrap"><strong>${r.views.toLocaleString()}</strong><div class="mini-bar"><div class="mini-bar-fill" style="width:${Math.round(r.views/maxV*100)}%"></div></div></div></td><td>${r.reach.toLocaleString()}</td><td>${r.likes}</td><td>${r.saves}</td><td>${r.shares}</td><td>${badge(r.er)}</td><td class="transcript-cell" title="${(r.transcript||'').replace(/"/g,'')}">${r.transcript||'<span style="color:#2a2a2a">—</span>'}</td><td><a class="ig" href="${igLink(r.permalink)}" target="_blank" rel="noopener" title="Відкрити в Instagram: ${igLink(r.permalink)}">↗</a></td></tr>`).join('')}</tbody></table>`;
+  document.getElementById('tbl').innerHTML=`<table><thead><tr><th>#</th><th>Дата</th><th>Підпис</th><th>👁 Views</th><th>👥 Reach</th><th>❤️</th><th>🔖</th><th>📤</th><th title="взаємодії ÷ охоплення">ER</th><th title="взаємодії ÷ підписники">ER·пдп</th><th>🎤 Скрипт</th><th></th></tr></thead><tbody>${data.map((r,i)=>`<tr><td style="color:#333">${i+1}</td><td style="color:#555;white-space:nowrap">${r.date}</td><td class="caption-cell" title="${(r.caption||'').replace(/"/g,'')}">${r.caption?r.caption.slice(0,50)+(r.caption.length>50?'…':''):'<span style="color:#2a2a2a">—</span>'}</td><td><div class="bar-wrap"><strong>${r.views.toLocaleString()}</strong><div class="mini-bar"><div class="mini-bar-fill" style="width:${Math.round(r.views/maxV*100)}%"></div></div></div></td><td>${r.reach.toLocaleString()}</td><td>${r.likes}</td><td>${r.saves}</td><td>${r.shares}</td><td>${badge(r.er)}</td><td style="color:var(--muted);font-variant-numeric:tabular-nums">${r.erf}%</td><td class="transcript-cell" title="${(r.transcript||'').replace(/"/g,'')}">${r.transcript||'<span style="color:#2a2a2a">—</span>'}</td><td><a class="ig" href="${igLink(r.permalink)}" target="_blank" rel="noopener" title="Відкрити в Instagram: ${igLink(r.permalink)}">↗</a></td></tr>`).join('')}</tbody></table>`;
 }
 
 function renderPatterns() {

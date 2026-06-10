@@ -329,11 +329,18 @@ def api_sync():
 
 @app.route("/api/meta")
 def api_meta():
-    """Підпис автора у футері (конфігурується через CREDIT_HANDLE у .env)."""
+    """Підпис автора у футері + кількість підписників (для ER за підписниками)."""
     handle = os.environ.get("CREDIT_HANDLE", "hlyboki_sensy").lstrip("@").strip()
+    fc = 0
+    try:
+        r = _api_get(f"{BASE}/me", {"fields": "followers_count", "access_token": TOKEN})
+        fc = r.get("followers_count", 0) or 0
+    except Exception:
+        pass
     return jsonify({
         "handle": handle,
         "url": f"https://instagram.com/{handle}" if handle else "",
+        "followers_count": fc,
     })
 
 @app.route("/api/posts")
